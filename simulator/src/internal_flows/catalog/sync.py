@@ -72,7 +72,9 @@ async def _content_lang_ids(json_http: httpx.AsyncClient) -> dict[str, int]:
 def _ml(lang_ids: dict[str, int], item: dict[str, Any], base: str) -> dict[int, str]:
     """{ps_lang_id: item[<base>_<iso>]} with English fallback (name, description, …)."""
     fallback = item.get(f"{base}_en", "")
-    return {lid: (item.get(f"{base}_{iso}") or fallback) for iso, lid in lang_ids.items()}
+    return {
+        lid: (item.get(f"{base}_{iso}") or fallback) for iso, lid in lang_ids.items()
+    }
 
 
 def _ml_slug(lang_ids: dict[str, int], item: dict[str, Any]) -> dict[int, str]:
@@ -259,9 +261,7 @@ async def _patch_product(
     if featured:
         categories.append(HOME_CATEGORY_ID)
     if categories:
-        fields.append(
-            ps.associations(ps.id_list("categories", "category", categories))
-        )
+        fields.append(ps.associations(ps.id_list("categories", "category", categories)))
     return await ps.put(xml_http, "products", pid, ps.wrap("product", *fields))
 
 

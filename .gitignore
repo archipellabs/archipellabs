@@ -10,6 +10,9 @@ __pycache__/
 .venv/
 venv/
 
+# Generated PrestaShop API clients (regenerate: python scripts/generate_prestashop_clients.py)
+simulator/generated/
+
 # Test / tooling caches
 .pytest_cache/
 .mypy_cache/

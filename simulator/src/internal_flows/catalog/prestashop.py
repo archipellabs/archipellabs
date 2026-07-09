@@ -136,7 +136,7 @@ def resource_id(root: ET.Element | None) -> int | None:
     try:
         val = root[0].findtext("id", "").strip()
         return int(val) if val else None
-    except (IndexError, ValueError):
+    except IndexError, ValueError:
         return None
 
 

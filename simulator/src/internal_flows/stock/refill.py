@@ -91,13 +91,13 @@ async def _set_quantity(
         "stock_available",
         ps.field("id", stock_available["id"]),
         ps.field("id_product", stock_available["id_product"]),
-        ps.field("id_product_attribute", stock_available.get("id_product_attribute", 0)),
+        ps.field(
+            "id_product_attribute", stock_available.get("id_product_attribute", 0)
+        ),
         ps.field("id_shop", stock_available.get("id_shop", 1)),
         ps.field("id_shop_group", stock_available.get("id_shop_group", 0)),
         ps.field("depends_on_stock", stock_available.get("depends_on_stock", 0)),
         ps.field("out_of_stock", stock_available.get("out_of_stock", 2)),
         ps.field("quantity", quantity),
     )
-    return await ps.put(
-        xml_http, "stock_availables", int(stock_available["id"]), body
-    )
+    return await ps.put(xml_http, "stock_availables", int(stock_available["id"]), body)

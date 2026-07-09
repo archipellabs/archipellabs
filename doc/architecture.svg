@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-label="TimberWorks architecture: a local Python simulator drives customer traffic and keeps the catalog/stock in sync over Redis, through an nginx TLS gateway, to a PrestaShop storefront (MySQL) and Matomo analytics (MariaDB); provisioning sidecars set up each stack once, the storefront reports page views to Matomo, and a roadmap lists planned components.">
+  <style>
+    .ov   { font:500 10px 'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; letter-spacing:.9px; }
+    .mono { font:400 10.5px 'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    .monob{ font:700 10px 'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    .h    { font:600 16px 'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; fill:#061318; }
+    .sans { font:400 12px 'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; fill:#3a464c; }
+    .node { fill:#ffffff; stroke:#d6dfe2; stroke-width:1; }
+    .chip { fill:#f4efe4; stroke:#e0dccf; stroke-width:1; }
+    .plan { fill:none; stroke:#a9b6bc; stroke-width:1.4; stroke-dasharray:6 5; }
+    .eG { stroke:#22a078; stroke-width:2.2; fill:none; }
+    .eB { stroke:#cf9b3e; stroke-width:2; fill:none; stroke-dasharray:5 4; }
+    .eS { stroke:#6b7b82; stroke-width:1.5; fill:none; }
+  </style>
+  <defs>
+    <marker id="mg" markerWidth="10" markerHeight="9" refX="7.5" refY="4" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 Z" fill="#22a078"/></marker>
+    <marker id="mb" markerWidth="10" markerHeight="9" refX="7.5" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 Z" fill="#cf9b3e"/></marker>
+    <marker id="ms" markerWidth="9" markerHeight="8" refX="7" refY="3.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3.5 L0,7 Z" fill="#6b7b82"/></marker>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="3.5" flood-color="#061318" flood-opacity="0.10"/></filter>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="760" fill="#fbf8f2"/>
+  <rect x="0" y="0" width="1200" height="4" fill="#061318"/>
+
+  <!-- header -->
+  <text class="ov" x="40" y="44" fill="#bc5b39">ENTERPRISE-ARCHITECTURE SIMULATOR</text>
+  <text class="h" x="40" y="74" font-size="24">TimberWorks</text>
+  <text class="ov" x="1160" y="46" fill="#4f5d64" text-anchor="end">2026-07-09</text>
+  <text class="mono" x="1160" y="66" fill="#6b7b82" text-anchor="end">components &amp; flows</text>
+  <line x1="40" y1="92" x2="1160" y2="92" stroke="#bac7cc" stroke-width="1"/>
+
+  <!-- ============ SIMULATOR (app · green) ============ -->
+  <g filter="url(#sh)"><rect class="node" x="40" y="120" width="322" height="232" rx="2"/></g>
+  <rect x="40" y="120" width="4" height="232" fill="#22a078"/>
+  <circle cx="72" cy="152" r="17" fill="#22a078"/><text class="monob" x="72" y="156" fill="#fff" text-anchor="middle">SIM</text>
+  <text class="ov" x="100" y="140" fill="#4f5d64">SIMULATOR</text>
+  <text class="h" x="100" y="160">Simulator</text>
+  <text class="mono" x="100" y="176" fill="#4f5d64">local · Python</text>
+  <text class="ov" x="342" y="140" fill="#bc5b39" text-anchor="end">LOCAL</text>
+
+  <text class="ov" x="60" y="202" fill="#22a078">SHOPPER TRAFFIC</text>
+  <rect class="chip" x="60" y="210" width="284" height="24" rx="3"/><text class="mono" x="72" y="226" fill="#3a464c">Customer arrivals · Poisson traffic</text>
+  <rect class="chip" x="60" y="238" width="284" height="24" rx="3"/><text class="mono" x="72" y="254" fill="#3a464c">Browsing &amp; checkout · Playwright</text>
+  <text class="ov" x="60" y="288" fill="#22a078">CATALOG &amp; STOCK</text>
+  <rect class="chip" x="60" y="296" width="284" height="24" rx="3"/><text class="mono" x="72" y="312" fill="#3a464c">Catalog sync (PIM → shop) + drift</text>
+  <rect class="chip" x="60" y="324" width="284" height="24" rx="3"/><text class="mono" x="72" y="340" fill="#3a464c">Stock top-ups</text>
+
+  <!-- ============ REDIS (middleware · slate) ============ -->
+  <g filter="url(#sh)"><rect class="node" x="40" y="374" width="322" height="64" rx="2"/></g>
+  <rect x="40" y="374" width="4" height="64" fill="#6b7b82"/>
+  <circle cx="72" cy="406" r="16" fill="#6b7b82"/><text class="monob" x="72" y="410" fill="#fff" text-anchor="middle">RDS</text>
+  <text class="ov" x="100" y="394" fill="#6b7b82">MIDDLEWARE · STREAMS</text>
+  <text class="h" x="100" y="414" font-size="15">Redis</text>
+  <text class="mono" x="152" y="414" fill="#4f5d64">arrivals &amp; catalog events</text>
+
+  <!-- ============ ROADMAP · capability journey (planned · dashed) ============ -->
+  <rect class="plan" x="40" y="460" width="322" height="230" rx="4"/>
+  <text class="ov" x="60" y="488" fill="#8c7a55">ROADMAP</text>
+  <text class="h" x="60" y="510" font-size="15" fill="#4f5d64">Capability by capability</text>
+  <text class="mono" x="342" y="488" fill="#a9b6bc" text-anchor="end">dashed = planned</text>
+  <line x1="60" y1="524" x2="342" y2="524" stroke="#d6dfe2" stroke-width="1"/>
+  <text class="mono" x="60" y="548" fill="#3a464c">◇  Suppliers · replenishment</text>
+  <text class="ov"   x="342" y="548" fill="#cf9b3e" text-anchor="end">NEXT</text>
+  <text class="mono" x="60" y="572" fill="#4f5d64">◇  Inventory</text>
+  <text class="mono" x="60" y="596" fill="#4f5d64">◇  Accounting</text>
+  <text class="mono" x="60" y="620" fill="#4f5d64">◇  POS</text>
+  <text class="mono" x="60" y="644" fill="#4f5d64">◇  Stores</text>
+  <text class="mono" x="60" y="668" fill="#4f5d64">→  Omnichannel · vision</text>
+
+  <!-- ============ GATEWAY (edge · green) ============ -->
+  <g filter="url(#sh)"><rect class="node" x="452" y="238" width="192" height="178" rx="2"/></g>
+  <rect x="452" y="238" width="4" height="178" fill="#22a078"/>
+  <circle cx="484" cy="270" r="17" fill="#22a078"/><text class="monob" x="484" y="274" fill="#fff" text-anchor="middle">GW</text>
+  <text class="ov" x="512" y="258" fill="#4f5d64">EDGE</text>
+  <text class="h" x="512" y="278">Gateway</text>
+  <text class="mono" x="472" y="306" fill="#4f5d64">nginx · TLS · localhost</text>
+  <rect class="chip" x="472" y="318" width="160" height="82" rx="3"/>
+  <text class="ov" x="484" y="338" fill="#6b7b82">ROUTES</text>
+  <text class="mono" x="484" y="358" fill="#3a464c">/           → shop</text>
+  <text class="mono" x="484" y="376" fill="#3a464c">/api /admin-api → APIs</text>
+  <text class="mono" x="484" y="394" fill="#3a464c">/stats/     → Matomo</text>
+
+  <!-- ============ STOREFRONT (app · green) ============ -->
+  <g filter="url(#sh)"><rect class="node" x="700" y="120" width="330" height="104" rx="2"/></g>
+  <rect x="700" y="120" width="4" height="104" fill="#22a078"/>
+  <circle cx="732" cy="152" r="17" fill="#22a078"/><text class="monob" x="732" y="156" fill="#fff" text-anchor="middle">PS</text>
+  <text class="ov" x="760" y="140" fill="#4f5d64">STOREFRONT</text>
+  <text class="h" x="760" y="160">PrestaShop</text>
+  <text class="mono" x="1010" y="140" fill="#6b7b82" text-anchor="end">9.1.4</text>
+  <text class="sans" x="760" y="188">catalog · cart · orders</text>
+  <text class="mono" x="760" y="208" fill="#4f5d64">Webservice + Admin (OAuth2) APIs</text>
+
+  <!-- MySQL (database · slate) -->
+  <g filter="url(#sh)"><rect class="node" x="700" y="248" width="158" height="88" rx="2"/></g>
+  <rect x="700" y="248" width="4" height="88" fill="#6b7b82"/>
+  <g fill="#6b7b82"><ellipse cx="732" cy="288" rx="15" ry="5.5"/><rect x="717" y="288" width="30" height="20"/><ellipse cx="732" cy="308" rx="15" ry="5.5"/></g><rect x="717" y="287" width="30" height="8" fill="#8b979d"/>
+  <text class="ov" x="760" y="276" fill="#6b7b82">DATABASE</text>
+  <text class="h" x="760" y="296" font-size="15">MySQL</text>
+  <text class="mono" x="760" y="320" fill="#4f5d64">shop data</text>
+
+  <!-- prestashop-sidecar (setup · brass) -->
+  <g filter="url(#sh)"><rect class="node" x="872" y="248" width="158" height="88" rx="2"/></g>
+  <rect x="872" y="248" width="4" height="88" fill="#cf9b3e"/>
+  <circle cx="904" cy="284" r="15" fill="#cf9b3e"/><text class="monob" x="904" y="288" fill="#fff" text-anchor="middle">SC</text>
+  <text class="ov" x="932" y="272" fill="#cf9b3e">SETUP · ONCE</text>
+  <text class="h" x="932" y="292" font-size="14">sidecar</text>
+  <text class="mono" x="884" y="320" fill="#4f5d64">APIs · theme · module</text>
+
+  <!-- ============ MATOMO (app · green) ============ -->
+  <g filter="url(#sh)"><rect class="node" x="700" y="360" width="330" height="104" rx="2"/></g>
+  <rect x="700" y="360" width="4" height="104" fill="#22a078"/>
+  <circle cx="732" cy="392" r="17" fill="#22a078"/><text class="monob" x="732" y="396" fill="#fff" text-anchor="middle">MT</text>
+  <text class="ov" x="760" y="380" fill="#4f5d64">ANALYTICS</text>
+  <text class="h" x="760" y="400">Matomo</text>
+  <text class="mono" x="1010" y="380" fill="#6b7b82" text-anchor="end">v5</text>
+  <text class="sans" x="760" y="428">ecommerce tracking · site 1</text>
+  <text class="mono" x="760" y="448" fill="#4f5d64">matomo-cron archives reports</text>
+
+  <!-- MariaDB (database · slate) -->
+  <g filter="url(#sh)"><rect class="node" x="700" y="488" width="158" height="88" rx="2"/></g>
+  <rect x="700" y="488" width="4" height="88" fill="#6b7b82"/>
+  <g fill="#6b7b82"><ellipse cx="732" cy="528" rx="15" ry="5.5"/><rect x="717" y="528" width="30" height="20"/><ellipse cx="732" cy="548" rx="15" ry="5.5"/></g><rect x="717" y="527" width="30" height="8" fill="#8b979d"/>
+  <text class="ov" x="760" y="516" fill="#6b7b82">DATABASE</text>
+  <text class="h" x="760" y="536" font-size="15">MariaDB</text>
+  <text class="mono" x="760" y="560" fill="#4f5d64">analytics data</text>
+
+  <!-- matomo-sidecar (setup · brass) -->
+  <g filter="url(#sh)"><rect class="node" x="872" y="488" width="158" height="88" rx="2"/></g>
+  <rect x="872" y="488" width="4" height="88" fill="#cf9b3e"/>
+  <circle cx="904" cy="524" r="15" fill="#cf9b3e"/><text class="monob" x="904" y="528" fill="#fff" text-anchor="middle">SC</text>
+  <text class="ov" x="932" y="512" fill="#cf9b3e">SETUP · ONCE</text>
+  <text class="h" x="932" y="532" font-size="14">sidecar</text>
+  <text class="mono" x="884" y="560" fill="#4f5d64">schema · admin · site</text>
+
+  <!-- ============ FLOWS ============ -->
+  <path class="eG" marker-end="url(#mg)" d="M362,296 C 398,300 414,308 448,312"/>
+  <text class="ov" x="372" y="286" fill="#22a078">SHOP + SYNC</text>
+  <path class="eG" marker-start="url(#mg)" marker-end="url(#mg)" d="M110,374 L110,352"/>
+  <text class="ov" x="122" y="368" fill="#22a078">EVENTS</text>
+  <path class="eG" marker-end="url(#mg)" d="M644,286 C 672,252 684,176 696,176"/>
+  <text class="ov" x="652" y="236" fill="#22a078">/ · /api</text>
+  <path class="eG" marker-end="url(#mg)" d="M644,384 C 672,412 684,410 696,410"/>
+  <text class="ov" x="652" y="430" fill="#22a078">/stats/</text>
+  <path class="eS" marker-end="url(#ms)" d="M760,224 L760,246"/>
+  <path class="eS" marker-end="url(#ms)" d="M760,464 L760,486"/>
+  <path class="eB" marker-end="url(#mb)" d="M951,248 L951,226"/>
+  <path class="eB" marker-end="url(#mb)" d="M951,488 L951,466"/>
+  <path class="eG" marker-end="url(#mg)" d="M1030,196 C 1082,250 1082,392 1030,436"/>
+  <text class="ov" x="1092" y="312" fill="#22a078">PAGE VIEWS</text>
+  <text class="mono" x="1092" y="328" fill="#6b7b82">matomo.js</text>
+
+  <!-- ============ LEGEND ============ -->
+  <line x1="40" y1="712" x2="1160" y2="712" stroke="#d6dfe2" stroke-width="1"/>
+  <line x1="44" y1="732" x2="72" y2="732" class="eG"/><text class="mono" x="80" y="736" fill="#4f5d64">runtime flow</text>
+  <line x1="200" y1="732" x2="228" y2="732" class="eB"/><text class="mono" x="236" y="736" fill="#4f5d64">provisioning · once</text>
+  <line x1="392" y1="732" x2="420" y2="732" class="eS"/><text class="mono" x="428" y="736" fill="#4f5d64">data · middleware</text>
+</svg>
