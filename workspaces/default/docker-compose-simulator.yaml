@@ -1,0 +1,35 @@
+# Simulator as a container — DEFERRED. It drives Chromium in Docker, but the shop's
+# canonical domain and the Matomo tracker URL are absolute (https://localhost/…),
+# which a container can't resolve to the gateway the way a host browser can. Until
+# a shared hostname / DNS is set up, run the simulator LOCALLY from Python instead
+# — see the root README, "Simulator (local Python — temporary)".
+#
+# When re-enabled: bring the storefront up first (`docker compose up -d`, which
+# creates archipellabs_default_net); this stack attaches to it as `external` and
+# reaches the other services by name (redis, gateway).
+
+networks:
+  archipellabs_default_net:
+    external: true
+    name: archipellabs_default_net
+
+services:
+
+  simulator:
+    container_name: simulator
+    build:
+      context: ../../simulator
+      dockerfile: Dockerfile
+    image: archipellabs-simulator:latest
+    restart: unless-stopped
+    init: true # reap Chromium child processes
+    shm_size: 1gb # Chromium needs more than Docker's default 64MB /dev/shm
+    networks:
+      - archipellabs_default_net
+    # Config ships committed at config/simulator/default.env (demo values, works
+    # out of the box). Copy it to .env in the same folder for local overrides —
+    # that layer is optional and gitignored.
+    env_file:
+      - ./config/simulator/default.env
+      - path: ./config/simulator/.env
+        required: false

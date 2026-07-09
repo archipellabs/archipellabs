@@ -1,0 +1,28 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Archipel\Provisioning\Kernel\Application;
+
+$vendorAutoload = __DIR__ . '/../vendor/autoload.php';
+if (is_file($vendorAutoload)) {
+    require $vendorAutoload;
+} else {
+    // Zero runtime dependencies, so no `composer install` and no custom image:
+    // a minimal PSR-4 autoloader lets the sidecar run straight from the official
+    // PrestaShop image with the source mounted in. If real deps are ever added,
+    // run composer and the generated vendor/autoload.php above takes over.
+    spl_autoload_register(static function (string $class): void {
+        $prefix = 'Archipel\\Provisioning\\';
+        if (!str_starts_with($class, $prefix)) {
+            return;
+        }
+        $path = __DIR__ . '/../src/' . str_replace('\\', '/', substr($class, \strlen($prefix))) . '.php';
+        if (is_file($path)) {
+            require $path;
+        }
+    });
+}
+
+exit((new Application())->run(array_slice($argv, 1)));

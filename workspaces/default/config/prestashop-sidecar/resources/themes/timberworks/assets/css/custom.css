@@ -1,0 +1,165 @@
+/* TimberWorks branding — overrides Hummingbird (Bootstrap 5.3) through CSS custom
+   properties. Loaded by the core as `theme-custom` (priority 1000), after
+   theme.css, so these win without recompiling the theme SCSS.
+   Palette + type from workspaces/ecommerce/doc/design.md. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Montserrat:wght@400;600&display=swap');
+
+:root {
+  /* Brand: Forest Green */
+  --bs-primary: #3F5E2A;
+  --bs-primary-rgb: 63, 94, 42;
+  --bs-primary-text-emphasis: #2E4620;
+  --bs-primary-bg-subtle: #E8EFE0;
+  --bs-primary-border-subtle: #B9CDA6;
+
+  /* Secondary: Wood Brown */
+  --bs-secondary: #7A4E2D;
+  --bs-secondary-rgb: 122, 78, 45;
+
+  /* Surfaces & text */
+  --bs-body-color: #1F1F1F;
+  --bs-body-color-rgb: 31, 31, 31;
+  --bs-body-bg: #F7F7F5;
+
+  --bs-link-color: #3F5E2A;
+  --bs-link-color-rgb: 63, 94, 42;
+  --bs-link-hover-color: #2E4620;
+  --bs-link-hover-color-rgb: 46, 70, 32;
+
+  --bs-border-radius: 0.5rem;
+
+  --bs-font-sans-serif: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--bs-font-sans-serif);
+  line-height: 1.6;
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-weight: 600;
+}
+
+/* Bootstrap bakes the literal blue into component-level vars, so re-point them. */
+.btn-primary {
+  --bs-btn-bg: #3F5E2A;
+  --bs-btn-border-color: #3F5E2A;
+  --bs-btn-hover-bg: #344F23;
+  --bs-btn-hover-border-color: #2E4620;
+  --bs-btn-active-bg: #2E4620;
+  --bs-btn-active-border-color: #2E4620;
+  --bs-btn-disabled-bg: #3F5E2A;
+  --bs-btn-disabled-border-color: #3F5E2A;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: #3F5E2A;
+  --bs-btn-border-color: #3F5E2A;
+  --bs-btn-hover-bg: #3F5E2A;
+  --bs-btn-hover-border-color: #3F5E2A;
+  --bs-btn-active-bg: #3F5E2A;
+  --bs-btn-active-border-color: #3F5E2A;
+}
+
+/* Scope the link colour away from button-styled anchors, or it overrides the
+   .btn text colour (green text on a green .btn-primary). */
+a:not(.btn) { color: var(--bs-link-color); }
+a:not(.btn):hover { color: var(--bs-link-hover-color); }
+
+.text-primary { color: #3F5E2A !important; }
+.bg-primary { background-color: #3F5E2A !important; }
+.text-secondary { color: #7A4E2D !important; }
+
+/* Cards per design doc: white, soft shadow, 8px radius. */
+.card {
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .08);
+}
+
+/* ===== TimberWorks home page ===== */
+.tw-home section { padding: 3.5rem 0; }
+.tw-home .tw-section-title {
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-weight: 600;
+  margin-bottom: 1.75rem;
+}
+
+/* Hero */
+.tw-hero {
+  background: linear-gradient(180deg, #E8D7B5 0%, #F2E7CF 100%);
+  text-align: center;
+}
+.tw-hero__inner { max-width: 760px; }
+.tw-hero__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: .8rem;
+  font-weight: 600;
+  color: #7A4E2D;
+  margin-bottom: .75rem;
+}
+.tw-hero__title {
+  font-family: 'Montserrat', 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  color: #1F1F1F;
+  margin-bottom: 1rem;
+}
+.tw-hero__subtitle { font-size: 1.15rem; color: #3a3a3a; margin-bottom: 1.75rem; }
+.tw-hero__actions { display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap; }
+
+/* Category tiles */
+.tw-cats__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.tw-cat {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid #ECE6DA;
+  border-radius: .5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+  text-decoration: none;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.tw-cat:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(63, 94, 42, .15); }
+.tw-cat__name { font-family: 'Montserrat', 'Inter', sans-serif; font-weight: 600; color: #3F5E2A; }
+.tw-cat__blurb { font-size: .9rem; color: #6B6B6B; }
+
+/* Why TimberWorks */
+.tw-why { background: #fff; }
+.tw-why__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+.tw-why__item h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #3F5E2A;
+  margin-bottom: .4rem;
+}
+.tw-why__item p { color: #6B6B6B; margin: 0; }
+
+/* Construction kits band */
+.tw-kits { background: #3F5E2A; color: #fff; text-align: center; }
+.tw-kits__inner { max-width: 720px; }
+.tw-kits__title { color: #fff; font-family: 'Montserrat', 'Inter', sans-serif; font-weight: 600; margin-bottom: .75rem; }
+.tw-kits__text { color: #E8EFE0; margin-bottom: 1.5rem; }
+.tw-kits .btn-primary {
+  --bs-btn-bg: #fff;
+  --bs-btn-border-color: #fff;
+  --bs-btn-color: #3F5E2A;
+  --bs-btn-hover-bg: #E8D7B5;
+  --bs-btn-hover-border-color: #E8D7B5;
+  --bs-btn-hover-color: #2E4620;
+}

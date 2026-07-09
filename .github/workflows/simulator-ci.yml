@@ -1,0 +1,38 @@
+name: simulator CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "simulator/**"
+      - ".github/workflows/simulator-ci.yml"
+  pull_request:
+    paths:
+      - "simulator/**"
+      - ".github/workflows/simulator-ci.yml"
+
+concurrency:
+  group: simulator-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: simulator
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.14"
+      # The generated PrestaShop clients are a build artifact (gitignored), so
+      # regenerate them from the committed OpenAPI specs before syncing.
+      - run: uv run --no-project python scripts/generate_prestashop_clients.py
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest -m "not integration"

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "CAT_RAW_WOOD",
+    "name_en": "Raw Wood",
+    "name_fr": "Bois brut",
+    "parent_id": "",
+    "active": 1
+  },
+  {
+    "id": "CAT_PROCESSED_WOOD",
+    "name_en": "Processed Wood",
+    "name_fr": "Bois transformé",
+    "parent_id": "",
+    "active": 1
+  },
+  {
+    "id": "CAT_PLANTING",
+    "name_en": "Planting & Nursery",
+    "name_fr": "Plantation et pépinière",
+    "parent_id": "",
+    "active": 1
+  },
+  {
+    "id": "CAT_STRUCTURAL",
+    "name_en": "Structural Components",
+    "name_fr": "Composants structurels",
+    "parent_id": "",
+    "active": 1
+  },
+  {
+    "id": "CAT_ACCESS",
+    "name_en": "Access & Closures",
+    "name_fr": "Accès et fermetures",
+    "parent_id": "",
+    "active": 1
+  },
+  {
+    "id": "CAT_HARDWARE",
+    "name_en": "Wood Hardware",
+    "name_fr": "Quincaillerie bois",
+    "parent_id": "",
+    "active": 1
+  },
+  {
+    "id": "CAT_SIGNAGE",
+    "name_en": "Signage",
+    "name_fr": "Signalétique",
+    "parent_id": "",
+    "active": 1
+  },
+  {
+    "id": "CAT_STORAGE",
+    "name_en": "Storage & Workshop",
+    "name_fr": "Rangement et atelier",
+    "parent_id": "",
+    "active": 1
+  },
+  {
+    "id": "CAT_BUNDLES",
+    "name_en": "Bundles",
+    "name_fr": "Kits",
+    "parent_id": "",
+    "active": 1
+  }
+]

@@ -1,0 +1,4 @@
+/* Inherit Hummingbird's compiled base styles. The core registers this file
+   (`theme-main`, priority 50) for the active theme; importing the parent's keeps
+   the full Bootstrap 5 base intact while custom.css layers TimberWorks on top. */
+@import url('../../../hummingbird/assets/css/theme.css');

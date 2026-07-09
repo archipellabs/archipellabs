@@ -1,0 +1,73 @@
+# No top-level `networks:` here — the docker-compose.yaml entrypoint owns and
+# creates the shared network, and these services attach to it via the include.
+# (This stack is not meant to run standalone; use the entrypoint.)
+services:
+
+  prestashopdb:
+    container_name: prestashopdb
+    image: mysql:9.7
+    restart: unless-stopped
+    # All config + demo secrets for the stack live in the stack env_file.
+    env_file:
+      - ./config/prestashop/default.env
+    volumes:
+      - ./volumes/prestashopdb:/var/lib/mysql
+    networks:
+      - archipellabs_default_net
+
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - archipellabs_default_net
+
+  prestashop:
+    container_name: prestashop
+    image: prestashop/prestashop:9.1.4-8.5
+    restart: unless-stopped
+    depends_on:
+      - prestashopdb
+    volumes:
+      - ./volumes/prestashop/:/var/www/html/
+    ports:
+      - 80
+    # All config + demo secrets for the stack live in the stack env_file.
+    env_file:
+      - ./config/prestashop/default.env
+    networks:
+      - archipellabs_default_net
+
+  # Sidecar for everything that can't be done through the storefront's normal
+  # interfaces (API/console/files/SQL). A real PHP project in
+  # ./config/prestashop-sidecar, run straight from the official image (no build):
+  # the source is mounted in and a built-in PSR-4 autoloader means no composer.
+  # Replaces the former hand-rolled ps-api-client-init shell. Waits for the install
+  # to be effective, then runs the ordered, idempotent plan and exits. Run a single
+  # step on demand with:
+  #   docker compose run --rm prestashop-sidecar <StepName>
+  prestashop-sidecar:
+    image: prestashop/prestashop:9.1.4-8.5
+    container_name: prestashop-sidecar
+    depends_on:
+      prestashop:
+        condition: service_started
+    # All config + demo secrets for the stack live in the stack env_file (incl. the
+    # Matomo integration keys the InstallMatomo step reads).
+    env_file:
+      - ./config/prestashop/default.env
+    networks:
+      - archipellabs_default_net
+    volumes:
+      - ./volumes/prestashop:/var/www/html
+      - ./config/prestashop-sidecar:/opt/sidecar:ro
+      # PrestaShop's own web-root .env (reverse-proxy/HTTPS + feature flags),
+      # written into the web root by the PlaceReverseProxyEnv step. A direct
+      # bind-mount onto /var/www/html/.env can't create its mountpoint on a fresh
+      # volume, so it's mounted here (outside the read-only /opt/sidecar tree).
+      - ./config/prestashop/webroot.env:/opt/prestashop.env:ro
+    # Override the image's installer/apache entrypoint: just run our PHP CLI.
+    entrypoint: ["php", "/opt/sidecar/bin/provision"]
+    restart: "no"

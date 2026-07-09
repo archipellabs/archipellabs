@@ -1,0 +1,18 @@
+# Keep the build context small and never leak local state / secrets.
+.venv
+.git
+.github
+.env
+.DS_Store
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Not needed at runtime (build/dev/test only).
+tests
+scripts
+openapi
+*.md

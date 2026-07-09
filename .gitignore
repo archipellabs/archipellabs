@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment variables (real/local values only — committed defaults use *.default.env)
+.env
+.env.*
+
+# Distribution / build
+dist/
+build/
+
+# Docker volume data (runtime, not source)
+workspaces/*/volumes/

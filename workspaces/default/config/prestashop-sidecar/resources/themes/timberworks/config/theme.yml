@@ -1,0 +1,10 @@
+name: timberworks
+display_name: TimberWorks
+version: 1.0.0
+author:
+  name: "Archipel Labs"
+  email: "hello@archipellabs.com"
+  url: "https://archipellabs.com"
+# Child of Hummingbird: every other key (meta, available_layouts,
+# global_settings, modules) is inherited from the parent theme.yml.
+parent: hummingbird

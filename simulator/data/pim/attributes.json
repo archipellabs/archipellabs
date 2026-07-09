@@ -1,0 +1,42 @@
+[
+  {
+    "attribute": "wood_type",
+    "value": "acacia"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "bamboo"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "birch"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "cherry"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "dark_oak"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "jungle"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "mangrove"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "oak"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "pale_oak"
+  },
+  {
+    "attribute": "wood_type",
+    "value": "spruce"
+  }
+]

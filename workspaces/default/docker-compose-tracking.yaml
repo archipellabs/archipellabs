@@ -1,0 +1,101 @@
+# TimberWorks — Matomo web-analytics stack (tracking).
+#
+# Mirrors the official Matomo Docker setup
+# (https://matomo.org/faq/how-to-install/install-matomo-with-docker/): the Apache
+# app image + MariaDB + a cron container running core:archive. Adapted only to
+# this repo's conventions — pinned image tags, committed demo config in
+# config/matomo/default.env, the shared network, and bind-mounted volumes under
+# ./volumes/ (instead of named volumes).
+#
+# Included by the storefront's docker-compose.yaml, so `docker compose up` brings
+# it up alongside the shop (it is not meant to run standalone — the entrypoint
+# owns the shared network).
+#
+# No manual setup: the matomo-sidecar below installs Matomo headlessly (schema,
+# super user, TimberWorks as an *Ecommerce* site → idSite 1) before matomo starts.
+# The admin UI is at http://localhost:8080 (login: the MATOMO_ADMIN_* values in
+# config/matomo/default.env); the matomo-cron container pre-computes reports, so
+# browser-triggered archiving can stay off. The storefront's tracking snippet is
+# installed separately by the PrestaShop sidecar's InstallMatomo step.
+
+# No top-level `networks:` here — the docker-compose.yaml entrypoint owns and
+# creates the shared network, and these services attach to it via the include.
+services:
+
+  matomodb:
+    container_name: matomodb
+    image: mariadb:11.4
+    restart: unless-stopped
+    # Matomo recommends a larger packet size for imports / archiving.
+    command: --max-allowed-packet=64MB
+    env_file:
+      - ./config/matomo/default.env
+    volumes:
+      - ./volumes/matomodb:/var/lib/mysql
+    networks:
+      - archipellabs_default_net
+
+  # Headless provisioning sidecar: populates the app dir, then installs Matomo
+  # (schema + super user + Ecommerce site) via its own classes. Runs once, exits.
+  # matomo waits for it to finish so it never races on populating the volume and
+  # only ever serves an already-installed instance.
+  matomo-sidecar:
+    container_name: matomo-sidecar
+    image: matomo:5-apache
+    depends_on:
+      - matomodb
+    env_file:
+      - ./config/matomo/default.env
+    volumes:
+      - ./volumes/matomo:/var/www/html
+      - ./config/matomo-sidecar:/opt/matomo-sidecar:ro
+    networks:
+      - archipellabs_default_net
+    # Populate the app dir from the image if empty, then run the headless install.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "[ -f /var/www/html/core/bootstrap.php ] || cp -a /usr/src/matomo/. /var/www/html/; exec php /opt/matomo-sidecar/install.php"
+    restart: "no"
+
+  matomo:
+    container_name: matomo
+    image: matomo:5-apache
+    restart: unless-stopped
+    depends_on:
+      matomo-sidecar:
+        condition: service_completed_successfully
+    env_file:
+      - ./config/matomo/default.env
+    environment:
+      # Raise for larger datasets (the official doc suggests 512M).
+      PHP_MEMORY_LIMIT: 512M
+    volumes:
+      # App files (config.ini.php, plugins, tmp) persist here and are shared with
+      # the cron container so it operates on the same install.
+      - ./volumes/matomo:/var/www/html
+    ports:
+      - "8080:80"
+    networks:
+      - archipellabs_default_net
+
+  # Cron container: runs core:archive on a schedule so reports are pre-computed
+  # (required for a real e-commerce site — browser-triggered archiving does not
+  # scale). Shares the app volume with `matomo`; errors self-heal on the next loop
+  # until the install wizard has been completed once.
+  matomo-cron:
+    container_name: matomo-cron
+    image: matomo:5-apache
+    restart: unless-stopped
+    depends_on:
+      - matomo
+    env_file:
+      - ./config/matomo/default.env
+    volumes:
+      - ./volumes/matomo:/var/www/html
+    networks:
+      - archipellabs_default_net
+    entrypoint: >
+      /bin/sh -c "while true; do
+      php /var/www/html/console core:archive;
+      sleep 300;
+      done"
