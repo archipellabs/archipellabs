@@ -124,11 +124,12 @@ async def test_run_arrival_realizes_the_visitor_envelope(monkeypatch):
 
     kwargs = browser.context_kwargs[0]
     assert kwargs["extra_http_headers"]["X-Forwarded-For"] == "128.95.104.7"
+    assert kwargs["extra_http_headers"]["X-Archipel-Simulator"] == "1"
     assert kwargs["timezone_id"] == "America/Los_Angeles"
     assert kwargs["ignore_https_errors"] is True
 
 
-async def test_run_arrival_without_visitor_keeps_todays_context(monkeypatch):
+async def test_run_arrival_without_visitor_still_marks_simulated_traffic(monkeypatch):
     async def fake_journey(*args, **kwargs): ...
 
     monkeypatch.setattr(pool_module, "run_customer_journey", fake_journey)
@@ -137,7 +138,11 @@ async def test_run_arrival_without_visitor_keeps_todays_context(monkeypatch):
 
     await run_arrival(ctx, _valid_event())
 
-    assert browser.context_kwargs[0] == {"ignore_https_errors": True}
+    kwargs = browser.context_kwargs[0]
+    assert kwargs["ignore_https_errors"] is True
+    # Even with no envelope, the simulator marker header is always present.
+    assert kwargs["extra_http_headers"] == {"X-Archipel-Simulator": "1"}
+    assert "user_agent" not in kwargs
 
 
 async def test_run_arrival_drops_malformed_event(monkeypatch):

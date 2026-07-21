@@ -26,6 +26,12 @@ from src.external_flows.topics import Topic
 
 log = logging.getLogger("simulator.customer_journey")
 
+# Sent on every simulated request so it can be told apart from real traffic (the
+# gateway tags it `sim=1` in its access log). Deliberately tracker-agnostic;
+# segmenting simulated vs real inside the analytics reports was left for a later
+# stage, mappable from this header in the gateway without touching the simulator.
+SIMULATOR_HEADER = {"X-Archipel-Simulator": "1"}
+
 
 @asynccontextmanager
 async def browser_lifespan(config: Config) -> AsyncIterator[Resources]:
@@ -63,9 +69,14 @@ async def run_arrival(ctx: Context, event: Event) -> None:
         return
 
     journey = journey_from_arrival(arrival)
-    context = await ctx.resources["browser"].new_context(
-        **context_kwargs(ctx.resources.get("devices", {}), arrival.visitor)
-    )
+    kwargs = context_kwargs(ctx.resources.get("devices", {}), arrival.visitor)
+    # Mark this as simulated traffic with a tracker-agnostic header on every
+    # request (readable in the gateway logs; see tracking.py).
+    kwargs["extra_http_headers"] = {
+        **SIMULATOR_HEADER,
+        **kwargs.get("extra_http_headers", {}),
+    }
+    context = await ctx.resources["browser"].new_context(**kwargs)
     await context.add_init_script(HIDE_CLIENT_HINTS_SCRIPT)
     try:
         await run_customer_journey(
