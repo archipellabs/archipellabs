@@ -36,6 +36,26 @@ class CustomerProfile(BaseModel):
     country: str
 
 
+class VisitorEnvelope(BaseModel):
+    """The technical guise a visitor arrives under — device, network, locality.
+
+    Website-agnostic on purpose: `device` is an abstract key from the producer's
+    catalogue (customer_arrivals/envelope.py); the consumer maps it to a concrete
+    browser profile (customer_journey/devices.py), mirroring intent → journey.
+
+    `city` is the *intended* location label; the analytics tracker geolocates the
+    IP itself and may record a different nearby city — that divergence is a
+    deliberate signal of the accuracy lost to a free GeoIP database, not a bug.
+    `timezone` is what we actually drive (sent to the browser).
+    """
+
+    device: str
+    ip: str
+    city: str
+    timezone: str
+    locale: str = "en-US"
+
+
 class ProductIntent(BaseModel):
     sku: str | None = None
     name: str | None = None
@@ -53,11 +73,16 @@ class CustomerArrivalEvent(BaseModel):
     id: str
     created_at: datetime
     intent: CustomerIntent
+    # Optional so events already on the stream keep validating.
+    visitor: VisitorEnvelope | None = None
 
     @classmethod
-    def create(cls, *, intent: CustomerIntent) -> Self:
+    def create(
+        cls, *, intent: CustomerIntent, visitor: VisitorEnvelope | None = None
+    ) -> Self:
         return cls(
             id=f"a_{uuid.uuid4().hex[:12]}",
             created_at=datetime.now(UTC),
             intent=intent,
+            visitor=visitor,
         )

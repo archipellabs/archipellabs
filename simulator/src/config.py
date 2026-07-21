@@ -49,7 +49,6 @@ class Settings(BaseSettings):
     country: str = "US"
     tick_seconds: float = 5.0
     base_arrivals_per_minute: float = 3.0
-    returning_ratio: float = 0.3
     max_arrivals_per_tick: int = 1000
     random_seed: int | None = None  # set for a reproducible producer run
 

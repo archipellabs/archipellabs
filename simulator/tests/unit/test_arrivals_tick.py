@@ -29,12 +29,12 @@ class FakeContext:
         self.emitted.append((event_type, payload))
 
 
-def _resources(*, base: float, returning_ratio: float = 0.3, seed: int = 7) -> dict:
+def _resources(*, base: float, seed: int = 7) -> dict:
     # One shared RNG, mirroring the lifespan: the pool and the tick draw from it.
     rng = random.Random(seed)
     return {
         "rate": RateConfig(base_arrivals_per_minute=base, noise_min=1.0, noise_max=1.0),
-        "identities": IdentityPool(rng=rng, returning_ratio=returning_ratio),
+        "identities": IdentityPool(rng=rng),
         "rng": rng,
     }
 
@@ -55,6 +55,7 @@ async def test_tick_emits_validatable_customer_arrivals():
         assert event_type == Topic.CUSTOMER_ARRIVAL
         event = CustomerArrivalEvent.model_validate(payload)
         assert event.intent.customer.email
+        assert event.visitor is not None and event.visitor.ip
 
 
 async def test_tick_emits_nothing_at_zero_rate():
@@ -73,19 +74,18 @@ async def test_tick_respects_max_arrivals_per_tick():
     assert len(ctx.emitted) == 3
 
 
-async def test_returning_customers_reuse_one_identity():
-    # returning_ratio=1.0: the first arrival mints an identity (pool empty), every
-    # later one reuses it — so a busy tick surfaces the same customer repeatedly.
-    ctx = FakeContext(
-        _resources(base=HUGE_BASE, returning_ratio=1.0),
-        _config(max_arrivals_per_tick=10),
-    )
+async def test_every_arrival_is_a_fresh_unique_visitor():
+    # Each arrival mints a new identity: distinct customers on distinct IPs, so
+    # every emission is a distinct visitor to the tracker.
+    ctx = FakeContext(_resources(base=HUGE_BASE), _config(max_arrivals_per_tick=10))
 
     await tick(ctx)
 
     emails = [p["intent"]["customer"]["email"] for _, p in ctx.emitted]
+    ips = [p["visitor"]["ip"] for _, p in ctx.emitted]
     assert len(emails) == 10
-    assert len(set(emails)) == 1
+    assert len(set(emails)) == 10  # ten distinct customers...
+    assert len(set(ips)) == 10  # ...on ten distinct visitor IPs
 
 
 def test_build_arrival_carries_an_identity_and_intent():
@@ -95,3 +95,4 @@ def test_build_arrival_carries_an_identity_and_intent():
     assert isinstance(arrival, CustomerArrivalEvent)
     assert arrival.intent.customer.email
     assert arrival.intent.type  # buy_products or browse_discover
+    assert arrival.visitor is not None and arrival.visitor.city

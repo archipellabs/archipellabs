@@ -11,6 +11,7 @@ from src.external_flows.contracts import (
     CustomerIntentType,
     CustomerProfile,
     ProductIntent,
+    VisitorEnvelope,
 )
 from src.external_flows.customer_journey import pool as pool_module
 from src.external_flows.customer_journey.pool import run_arrival
@@ -19,6 +20,10 @@ from src.external_flows.customer_journey.pool import run_arrival
 class FakeBrowserContext:
     def __init__(self) -> None:
         self.closed = False
+        self.init_scripts: list[str] = []
+
+    async def add_init_script(self, script: str) -> None:
+        self.init_scripts.append(script)
 
     async def close(self) -> None:
         self.closed = True
@@ -27,10 +32,12 @@ class FakeBrowserContext:
 class FakeBrowser:
     def __init__(self) -> None:
         self.contexts: list[FakeBrowserContext] = []
+        self.context_kwargs: list[dict] = []
 
     async def new_context(self, **kwargs) -> FakeBrowserContext:
         ctx = FakeBrowserContext()
         self.contexts.append(ctx)
+        self.context_kwargs.append(kwargs)
         return ctx
 
 
@@ -47,7 +54,7 @@ class FakeCtx:
     async def emit(self, event_type: str, /, **payload) -> None: ...
 
 
-def _valid_event(n_products: int = 1) -> dict:
+def _valid_event(n_products: int = 1, visitor: VisitorEnvelope | None = None) -> dict:
     profile = CustomerProfile(
         firstname="A",
         lastname="B",
@@ -66,6 +73,7 @@ def _valid_event(n_products: int = 1) -> dict:
                 ProductIntent(category="X", quantity=1) for _ in range(n_products)
             ],
         ),
+        visitor=visitor,
     )
     return event.model_dump(mode="json")
 
@@ -95,6 +103,41 @@ async def test_run_arrival_runs_journey_and_closes_context(monkeypatch):
     assert captured["guest"].email == "a.b@example.com"
     assert captured["flow_id"] == event["id"]  # consumer traces under the arrival id
     assert browser.contexts and browser.contexts[0].closed is True
+
+
+async def test_run_arrival_realizes_the_visitor_envelope(monkeypatch):
+    async def fake_journey(*args, **kwargs): ...
+
+    monkeypatch.setattr(pool_module, "run_customer_journey", fake_journey)
+    browser = FakeBrowser()
+    # No "devices" resource (as in these fakes): the descriptor is skipped but
+    # the network identity must still reach the context.
+    ctx = FakeCtx({"browser": browser}, {"base_url": "https://shop.test"})
+
+    visitor = VisitorEnvelope(
+        device="iphone",
+        ip="128.95.104.7",
+        city="Seattle",
+        timezone="America/Los_Angeles",
+    )
+    await run_arrival(ctx, _valid_event(visitor=visitor))
+
+    kwargs = browser.context_kwargs[0]
+    assert kwargs["extra_http_headers"]["X-Forwarded-For"] == "128.95.104.7"
+    assert kwargs["timezone_id"] == "America/Los_Angeles"
+    assert kwargs["ignore_https_errors"] is True
+
+
+async def test_run_arrival_without_visitor_keeps_todays_context(monkeypatch):
+    async def fake_journey(*args, **kwargs): ...
+
+    monkeypatch.setattr(pool_module, "run_customer_journey", fake_journey)
+    browser = FakeBrowser()
+    ctx = FakeCtx({"browser": browser}, {"base_url": "https://shop.test"})
+
+    await run_arrival(ctx, _valid_event())
+
+    assert browser.context_kwargs[0] == {"ignore_https_errors": True}
 
 
 async def test_run_arrival_drops_malformed_event(monkeypatch):

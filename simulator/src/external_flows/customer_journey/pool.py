@@ -17,6 +17,10 @@ from runtime import Config, Context, Event, Pool, Resources
 from src.config import settings
 from src.external_flows.contracts import CustomerArrivalEvent
 from src.external_flows.customer_journey.adapter import journey_from_arrival
+from src.external_flows.customer_journey.devices import (
+    HIDE_CLIENT_HINTS_SCRIPT,
+    context_kwargs,
+)
 from src.external_flows.customer_journey.journey import run_customer_journey
 from src.external_flows.topics import Topic
 
@@ -34,7 +38,7 @@ async def browser_lifespan(config: Config) -> AsyncIterator[Resources]:
     pw = await async_playwright().start()
     browser = await pw.chromium.launch(headless=config.get("headless", True))
     try:
-        yield {"browser": browser}
+        yield {"browser": browser, "devices": pw.devices}
     finally:
         await browser.close()
         await pw.stop()
@@ -59,7 +63,10 @@ async def run_arrival(ctx: Context, event: Event) -> None:
         return
 
     journey = journey_from_arrival(arrival)
-    context = await ctx.resources["browser"].new_context(ignore_https_errors=True)
+    context = await ctx.resources["browser"].new_context(
+        **context_kwargs(ctx.resources.get("devices", {}), arrival.visitor)
+    )
+    await context.add_init_script(HIDE_CLIENT_HINTS_SCRIPT)
     try:
         await run_customer_journey(
             context,

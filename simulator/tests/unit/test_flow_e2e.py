@@ -18,6 +18,8 @@ from src.external_flows.topics import Topic
 
 
 class FakeBrowserContext:
+    async def add_init_script(self, script: str) -> None: ...
+
     async def close(self) -> None: ...
 
 

@@ -25,7 +25,7 @@ SECOND_PRODUCT_PROBABILITY = 0.25
 
 def build_arrival(identities: IdentityPool, rng: random.Random) -> CustomerArrivalEvent:
     """One arrival: a customer (new or returning) carrying a business intent."""
-    customer = identities.pick()
+    identity = identities.pick()
 
     intent_type = (
         CustomerIntentType.BUY_PRODUCTS
@@ -38,5 +38,7 @@ def build_arrival(identities: IdentityPool, rng: random.Random) -> CustomerArriv
         if rng.random() < SECOND_PRODUCT_PROBABILITY:
             products.append(ProductIntent(category=INTENT_CATEGORY, quantity=1))
 
-    intent = CustomerIntent(type=intent_type, customer=customer, products=products)
-    return CustomerArrivalEvent.create(intent=intent)
+    intent = CustomerIntent(
+        type=intent_type, customer=identity.profile, products=products
+    )
+    return CustomerArrivalEvent.create(intent=intent, visitor=identity.visitor)

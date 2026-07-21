@@ -20,11 +20,13 @@ declare(strict_types=1);
 
 use Piwik\Access;
 use Piwik\Common;
+use Piwik\Config;
 use Piwik\Db;
 use Piwik\DbHelper;
 use Piwik\Application\Environment;
 use Piwik\Plugin\Manager as PluginManager;
 use Piwik\Plugins\SitesManager\API as SitesManagerApi;
+use Piwik\Plugins\UserCountry\LocationProvider;
 use Piwik\Plugins\UsersManager\API as UsersManagerApi;
 
 const ROOT = '/var/www/html';
@@ -40,6 +42,69 @@ function env(string $key, string $default = ''): string
     $value = getenv($key);
 
     return $value === false || $value === '' ? $default : $value;
+}
+
+/**
+ * Download a gzipped MaxMind-format DB and install it atomically at $dest — but
+ * only after the same reader Matomo uses confirms it is a valid, queryable
+ * database. Returns false (leaving nothing behind) on any failure, so a
+ * truncated or corrupt download never becomes a sticky, silently-broken DB that
+ * the `is_file` guard would then refuse to re-fetch.
+ */
+function download_geoip_db(string $url, string $dest): bool
+{
+    $tmpGz = $dest . '.gz.part';
+    $tmpDb = $dest . '.part';
+    $ok = false;
+    try {
+        $src = @fopen($url, 'rb');
+        if ($src === false) {
+            return false; // e.g. this month's file is not published yet (404)
+        }
+        $dst = @fopen($tmpGz, 'wb');
+        if ($dst === false) {
+            fclose($src);
+            return false; // misc/ not writable
+        }
+        $copied = stream_copy_to_stream($src, $dst);
+        fclose($src);
+        fclose($dst);
+        if ($copied === false || $copied < 1_000_000) {
+            return false; // truncated or empty response, not a ~100 MB database
+        }
+
+        $in = gzopen($tmpGz, 'rb');
+        $out = fopen($tmpDb, 'wb');
+        while (!gzeof($in)) {
+            $chunk = gzread($in, 1 << 20);
+            if ($chunk === false) {
+                break; // corrupt gzip stream — the reader check below will reject it
+            }
+            fwrite($out, $chunk);
+        }
+        gzclose($in);
+        fclose($out);
+
+        // Decisive check: open it exactly as Matomo will. The Reader constructor
+        // parses and validates the DB metadata (throws on a truncated/garbage
+        // file); the lookup exercises the data section.
+        $reader = new \MaxMind\Db\Reader($tmpDb);
+        $reader->get('8.8.8.8');
+        $reader->close();
+
+        $ok = rename($tmpDb, $dest);
+        return $ok;
+    } catch (\Throwable $e) {
+        say('discarding invalid GeoIP download: ' . $e->getMessage());
+        return false;
+    } finally {
+        if (is_file($tmpGz)) {
+            unlink($tmpGz);
+        }
+        if (!$ok && is_file($tmpDb)) {
+            unlink($tmpDb);
+        }
+    }
 }
 
 $dbHost = env('MATOMO_DATABASE_HOST', 'matomodb');
@@ -156,6 +221,68 @@ try {
     fwrite(STDERR, '[matomo-sidecar] ERROR during setup: ' . $e->getMessage() . "\n");
     fwrite(STDERR, $e->getTraceAsString() . "\n");
     exit(1);
+}
+
+// 6. Trust the gateway's X-Forwarded-For so the simulator's spoofed client IPs
+// land in the visit log (the gateway appends its own peer IP after the client
+// value; Matomo reads the first entry). Config-API merge, not a file rewrite —
+// config.ini.php usually predates this step.
+$config = Config::getInstance();
+$general = $config->General;
+$proxySettings = [
+    'proxy_client_headers' => ['HTTP_X_FORWARDED_FOR'],
+    'proxy_host_headers' => ['HTTP_X_FORWARDED_HOST'],
+    // Matomo picks the LAST X-Forwarded-For entry not listed here; without
+    // these the appended gateway/Docker peers win over the client value.
+    'proxy_ips' => ['172.31.0.0/24', '192.168.0.0/16'],
+];
+$proxyChanged = false;
+foreach ($proxySettings as $key => $values) {
+    $missing = array_diff($values, $general[$key] ?? []);
+    if ($missing !== []) {
+        $general[$key] = array_values(array_merge($general[$key] ?? [], $missing));
+        $proxyChanged = true;
+    }
+}
+if ($proxyChanged) {
+    $config->General = $general;
+    $config->forceSave();
+    say('enabled proxy client-IP settings (X-Forwarded-For + trusted proxy ranges)');
+} else {
+    say('proxy client-IP settings already configured');
+}
+
+// 7. Geolocation: install the free DB-IP City Lite database (no account needed)
+// and select the GeoIP2 (PHP) provider so those IPs resolve to cities. The
+// download (~100 MB) happens on the first run only; a failure is a warning, not
+// a fatal error — the stack must come up even offline.
+$geoDbFile = ROOT . '/misc/DBIP-City.mmdb';
+if (!is_file($geoDbFile)) {
+    $months = [date('Y-m'), date('Y-m', strtotime('first day of last month'))];
+    foreach ($months as $month) {
+        $url = "https://download.db-ip.com/free/dbip-city-lite-{$month}.mmdb.gz";
+        say("downloading GeoIP database {$url} ...");
+        if (download_geoip_db($url, $geoDbFile)) {
+            say('GeoIP database installed at misc/DBIP-City.mmdb');
+            break;
+        }
+    }
+    if (!is_file($geoDbFile)) {
+        fwrite(STDERR, "[matomo-sidecar] WARNING: could not download a valid DB-IP City Lite; geolocation stays on the default provider\n");
+    }
+} else {
+    say('GeoIP database already present');
+}
+
+if (is_file($geoDbFile)) {
+    Access::doAsSuperUser(function () {
+        if (LocationProvider::getCurrentProviderId() !== 'geoip2php') {
+            LocationProvider::setCurrentProvider('geoip2php');
+            say("location provider set to 'geoip2php'");
+        } else {
+            say("location provider already 'geoip2php'");
+        }
+    });
 }
 
 // Apply component/dimension DB updates via Matomo's own updater — createTables()

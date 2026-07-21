@@ -40,7 +40,6 @@ def build_app() -> App:
         config={
             "country": settings.country,
             "tick_seconds": settings.tick_seconds,
-            "returning_ratio": settings.returning_ratio,
             "max_arrivals_per_tick": settings.max_arrivals_per_tick,
             "random_seed": settings.random_seed,
             "rate": {"base_arrivals_per_minute": settings.base_arrivals_per_minute},

@@ -33,11 +33,7 @@ DEFAULT_MAX_ARRIVALS_PER_TICK = 1000
 async def arrivals_lifespan(config: Config) -> AsyncIterator[Resources]:
     rng = random.Random(config.get("random_seed"))
     rate = RateConfig(**config.get("rate", {}))
-    identities = IdentityPool(
-        rng=rng,
-        country=config.get("country", "US"),
-        returning_ratio=config.get("returning_ratio", 0.3),
-    )
+    identities = IdentityPool(rng=rng, country=config.get("country", "US"))
     yield {"rate": rate, "identities": identities, "rng": rng}
 
 
