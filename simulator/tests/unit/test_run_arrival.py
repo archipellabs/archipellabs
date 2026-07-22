@@ -46,8 +46,21 @@ class ExplodingBrowser:
         raise AssertionError("browser must not be touched for a malformed event")
 
 
+class FakeRepository:
+    """Stand-in for the always-present activity repository (a no-op recorder)."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    async def record(self, *, arrival, summary) -> None:
+        self.calls.append((arrival, summary))
+
+
 class FakeCtx:
     def __init__(self, resources: dict, config: dict | None = None) -> None:
+        # The activity repository is always wired by the pool lifespan, so mirror
+        # that here: default a no-op recorder unless the test supplies its own spy.
+        resources.setdefault("activity_repository", FakeRepository())
         self.resources = resources
         self.config: dict = config if config is not None else {}
 
@@ -143,6 +156,32 @@ async def test_run_arrival_without_visitor_still_marks_simulated_traffic(monkeyp
     # Even with no envelope, the simulator marker header is always present.
     assert kwargs["extra_http_headers"] == {"X-Archipel-Simulator": "1"}
     assert "user_agent" not in kwargs
+
+
+async def test_run_arrival_records_activity(monkeypatch):
+    async def fake_journey(*args, **kwargs):
+        return {
+            "flow_id": kwargs["flow_id"],
+            "journey": "guest_checkout",
+            "success": True,
+        }
+
+    monkeypatch.setattr(pool_module, "run_customer_journey", fake_journey)
+    browser = FakeBrowser()
+    repository = FakeRepository()
+    ctx = FakeCtx(
+        {"browser": browser, "activity_repository": repository},
+        {"base_url": "https://shop.test"},
+    )
+
+    event = _valid_event()
+    await run_arrival(ctx, event)
+
+    assert len(repository.calls) == 1
+    arrival, summary = repository.calls[0]
+    assert arrival.id == event["id"]
+    assert summary["journey"] == "guest_checkout"
+    assert browser.contexts[0].closed is True  # context still torn down
 
 
 async def test_run_arrival_drops_malformed_event(monkeypatch):

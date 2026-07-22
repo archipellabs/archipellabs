@@ -1,6 +1,7 @@
-"""End-to-end over a fake Redis: a producer tick emits arrivals onto the stream,
-and the consumer's `run_arrival` processes the round-tripped events. No real
-Redis, no real browser — the journey runner is stubbed."""
+"""Component test over a fake Redis: a producer tick emits arrivals onto the
+stream, and the consumer's `run_arrival` processes the round-tripped events. No
+real Redis, no real browser — the journey runner is stubbed. Hermetic, so it runs
+in the default lane (not the e2e marker)."""
 
 import random
 
@@ -30,6 +31,12 @@ class FakeBrowser:
     async def new_context(self, **kwargs) -> FakeBrowserContext:
         self.opened += 1
         return FakeBrowserContext()
+
+
+class FakeActivityRepository:
+    """No-op recorder — the pool lifespan always wires one, so the consumer ctx does too."""
+
+    async def record(self, *, arrival, summary) -> None: ...
 
 
 def _rate(base: float) -> RateConfig:
@@ -72,7 +79,7 @@ async def test_arrival_flows_producer_to_consumer(monkeypatch):
     browser = FakeBrowser()
     consumer_ctx = RuntimeContext(
         broker,
-        resources={"browser": browser},
+        resources={"browser": browser, "activity_repository": FakeActivityRepository()},
         config={"base_url": "https://shop.test", "fast": True},
     )
 

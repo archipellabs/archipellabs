@@ -17,6 +17,9 @@ networks:
 include:
   - path: docker-compose-ecommerce.yaml
   - path: docker-compose-tracking.yaml
+  # The simulator stack — brings up only the activity database (simulatordb); the
+  # simulator app itself is deferred and run locally (see the file's header).
+  - path: docker-compose-simulator.yaml
 
 services:
   # Shared reverse-proxy / TLS gateway. It fronts BOTH included stacks — the

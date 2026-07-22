@@ -1,6 +1,7 @@
 """Public entrypoint for running a customer journey against a PrestaShop instance."""
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from playwright.async_api import BrowserContext
@@ -61,6 +62,7 @@ async def run_customer_journey(
     )
 
     states, start = spec.graph_factory()
+    started_at = datetime.now(UTC)
     error: dict[str, str] | None = None
     try:
         await run(states, start, session)
@@ -82,6 +84,7 @@ async def run_customer_journey(
         )
         await page.close()
 
+    finished_at = datetime.now(UTC)
     return {
         "flow_id": flow_id,
         "journey": spec.name,
@@ -95,5 +98,7 @@ async def run_customer_journey(
         "selected_product": session.data.get("selected_product"),
         "cart_count": session.data.get("cart_count"),
         "final_url": session.data.get("final_url"),
+        "started_at": started_at,
+        "finished_at": finished_at,
         "events": trace.events,
     }

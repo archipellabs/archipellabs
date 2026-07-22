@@ -18,10 +18,10 @@ checkout *entry* (cart + personal-information landmarks). The deeper checkout
 steps (address/shipping/payment) need valid form submissions to reach and stay
 covered by the full journey test.
 
-    uv run pytest tests/integration/test_prestashop_selectors.py -s
+    uv run pytest tests/e2e/test_prestashop_selectors.py -s
 
 Requires a live shop with a populated catalog (same prerequisites as the other
-integration tests). Defaults to headless; override with HEADLESS=false.
+e2e tests). Defaults to headless; override with HEADLESS=false.
 """
 
 import os
@@ -54,7 +54,7 @@ from src.external_flows.customer_journey.states.proceed_to_checkout import PROCE
 from src.external_flows.customer_journey.states.selectors import CART_MODAL
 from src.services.browser.service import browser_session
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.e2e
 
 BASE_URL = os.getenv("SHOP_BASE_URL", "https://localhost")
 HEADLESS = os.getenv("HEADLESS", "true").strip().lower() in {"1", "true", "yes"}

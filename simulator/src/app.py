@@ -21,7 +21,13 @@ from src.internal_flows.stock.scheduler import scheduler as stock_scheduler
 
 
 def build_app() -> App:
+    # One runtime App holds every flow; each `include(..., enabled=)` is a
+    # kill-switch, so any flow can be turned off here (or split into its own
+    # deployment later) without touching the others. `config=` is the per-flow
+    # settings bag the flow reads from its `Context`.
     app = App(redis=settings.redis_url, namespace=settings.namespace)
+
+    # Consumer of customer.arrival: drives a browser through a PrestaShop journey.
     app.include(
         journey_pool,
         enabled=settings.journey_enabled,
@@ -29,11 +35,19 @@ def build_app() -> App:
             "headless": settings.headless,
             "base_url": settings.shop_base_url,
             "fast": settings.fast,
+            # Activity DB (chart data): the pool opens this once in its lifespan and
+            # records every journey run through it — core infrastructure, always on.
+            "dsn": settings.simulatordb_url,
         },
     )
+
+    # Internal (shop-side) flows: keep the catalog/stock in sync with the storefront.
     app.include(catalog_pool, enabled=settings.catalog_enabled)
     app.include(catalog_doctor, enabled=settings.catalog_doctor_enabled)
     app.include(stock_scheduler, enabled=settings.stock_enabled)
+
+    # Producer of customer.arrival: emits simulated arrivals on a timer. Off by
+    # default (arrivals_enabled) so the app can run consumer-only.
     app.include(
         scheduler,
         enabled=settings.arrivals_enabled,

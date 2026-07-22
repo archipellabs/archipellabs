@@ -22,7 +22,11 @@ from src.external_flows.customer_journey.devices import (
     context_kwargs,
 )
 from src.external_flows.customer_journey.journey import run_customer_journey
+from src.external_flows.customer_journey.repository.journey_activity import (
+    JourneyActivityRepository,
+)
 from src.external_flows.topics import Topic
+from src.infrastructure.db import make_engine, make_sessionmaker
 
 log = logging.getLogger("simulator.customer_journey")
 
@@ -43,11 +47,26 @@ async def browser_lifespan(config: Config) -> AsyncIterator[Resources]:
 
     pw = await async_playwright().start()
     browser = await pw.chromium.launch(headless=config.get("headless", True))
+
+    # Activity DB (chart data): opened once for the whole pool, like a database in a
+    # FastAPI lifespan. Every journey run is recorded through this repository — it is
+    # core infrastructure, not an optional add-on.
+    engine = make_engine(config["dsn"])
+    activity_repository = JourneyActivityRepository(make_sessionmaker(engine))
+    resources: Resources = {
+        "browser": browser,
+        "devices": pw.devices,
+        "activity_repository": activity_repository,
+    }
     try:
-        yield {"browser": browser, "devices": pw.devices}
+        # Fail fast if the DB is unreachable or unmigrated, instead of letting every
+        # arrival swallow the error in record() and silently write nothing.
+        await activity_repository.verify_ready()
+        yield resources
     finally:
         await browser.close()
         await pw.stop()
+        await engine.dispose()
 
 
 pool = Pool(
@@ -71,7 +90,7 @@ async def run_arrival(ctx: Context, event: Event) -> None:
     journey = journey_from_arrival(arrival)
     kwargs = context_kwargs(ctx.resources.get("devices", {}), arrival.visitor)
     # Mark this as simulated traffic with a tracker-agnostic header on every
-    # request (readable in the gateway logs; see tracking.py).
+    # request (readable in the gateway logs).
     kwargs["extra_http_headers"] = {
         **SIMULATOR_HEADER,
         **kwargs.get("extra_http_headers", {}),
@@ -79,13 +98,18 @@ async def run_arrival(ctx: Context, event: Event) -> None:
     context = await ctx.resources["browser"].new_context(**kwargs)
     await context.add_init_script(HIDE_CLIENT_HINTS_SCRIPT)
     try:
-        await run_customer_journey(
+        summary = await run_customer_journey(
             context,
             ctx.config["base_url"],
             journey=journey,
             guest=arrival.intent.customer,
             fast=ctx.config.get("fast", False),
             flow_id=arrival.id,
+        )
+        # Record the run into the activity DB (chart data). Best-effort inside the
+        # repository, so a DB hiccup can't fail the journey.
+        await ctx.resources["activity_repository"].record(
+            arrival=arrival, summary=summary
         )
     finally:
         await context.close()

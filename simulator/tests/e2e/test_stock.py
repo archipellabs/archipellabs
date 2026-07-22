@@ -1,6 +1,6 @@
 """Stock refill against a live PrestaShop (Webservice API). Run on demand:
 
-    uv run pytest tests/integration/test_stock.py
+    uv run pytest tests/e2e/test_stock.py
 
 Tops up the tracked products (barrel, chest) to REFILL_TO when below the floor.
 Idempotent: a second pass finds nothing to refill.
@@ -15,7 +15,7 @@ from src.internal_flows.stock.refill import (
     refill_stock,
 )
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.e2e
 
 
 async def test_stock_refill_tops_up_low_products():

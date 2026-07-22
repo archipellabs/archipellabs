@@ -1,35 +1,64 @@
-# Simulator as a container — DEFERRED. It drives Chromium in Docker, but the shop's
-# canonical domain and the Matomo tracker URL are absolute (https://localhost/…),
-# which a container can't resolve to the gateway the way a host browser can. Until
-# a shared hostname / DNS is set up, run the simulator LOCALLY from Python instead
-# — see the root README, "Simulator (local Python — temporary)".
+# Simulator stack.
 #
-# When re-enabled: bring the storefront up first (`docker compose up -d`, which
-# creates archipellabs_default_net); this stack attaches to it as `external` and
-# reaches the other services by name (redis, gateway).
+# Holds the simulator's own datastore — the activity database (PostgreSQL), which
+# records each customer-journey run so the coming charts app can query it. That DB
+# DOES run in Docker and is brought up by the entrypoint (see the `include:` in
+# docker-compose.yaml).
+#
+# The simulator APP itself is still run LOCALLY from Python, not in Docker (see the
+# commented `simulator` service below and the root README, "Simulator (local
+# Python — temporary)"). It drives Chromium against the shop's canonical
+# https://localhost/… URLs, which a container can't resolve to the gateway the way
+# a host browser can; containerising it is DEFERRED until a shared hostname / DNS
+# is set up.
 
-networks:
-  archipellabs_default_net:
-    external: true
-    name: archipellabs_default_net
-
+# No top-level `networks:` here — the docker-compose.yaml entrypoint owns and
+# creates the shared network, and these services attach to it via the include.
+# (This stack is not meant to run standalone; use the entrypoint.)
 services:
 
-  simulator:
-    container_name: simulator
-    build:
-      context: ../../simulator
-      dockerfile: Dockerfile
-    image: archipellabs-simulator:latest
+  # The simulator's activity database: records each customer-journey run so the
+  # coming charts app can query it. Unlike the in-network MySQL/MariaDB, it
+  # PUBLISHES 5432 because the simulator app runs locally (on the host) for now and
+  # reaches Postgres over localhost.
+  simulatordb:
+    container_name: simulatordb
+    image: postgres:16-alpine
     restart: unless-stopped
-    init: true # reap Chromium child processes
-    shm_size: 1gb # Chromium needs more than Docker's default 64MB /dev/shm
-    networks:
-      - archipellabs_default_net
-    # Config ships committed at config/simulator/default.env (demo values, works
-    # out of the box). Copy it to .env in the same folder for local overrides —
-    # that layer is optional and gitignored.
+    # All config + demo secrets for the stack live in the stack env_file; the
+    # Postgres image reads the POSTGRES_* keys and ignores the rest.
     env_file:
       - ./config/simulator/default.env
-      - path: ./config/simulator/.env
-        required: false
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./volumes/simulatordb:/var/lib/postgresql/data
+    networks:
+      - archipellabs_default_net
+
+  # Simulator as a container — DEFERRED, so kept commented out (the entrypoint
+  # would otherwise try to build and run it). It drives Chromium in Docker, but the
+  # shop's canonical domain and the Matomo tracker URL are absolute
+  # (https://localhost/…), which a container can't resolve to the gateway the way a
+  # host browser can. Until a shared hostname / DNS is set up, run the simulator
+  # LOCALLY from Python instead — see the root README, "Simulator (local Python —
+  # temporary)". Uncomment to re-enable once that's solved.
+  #
+  # simulator:
+  #   container_name: simulator
+  #   build:
+  #     context: ../../simulator
+  #     dockerfile: Dockerfile
+  #   image: archipellabs-simulator:latest
+  #   restart: unless-stopped
+  #   init: true # reap Chromium child processes
+  #   shm_size: 1gb # Chromium needs more than Docker's default 64MB /dev/shm
+  #   networks:
+  #     - archipellabs_default_net
+  #   # Config ships committed at config/simulator/default.env (demo values, works
+  #   # out of the box). Copy it to .env in the same folder for local overrides —
+  #   # that layer is optional and gitignored.
+  #   env_file:
+  #     - ./config/simulator/default.env
+  #     - path: ./config/simulator/.env
+  #       required: false

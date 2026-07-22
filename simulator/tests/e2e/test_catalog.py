@@ -1,9 +1,9 @@
 """Catalog sync against a live PrestaShop (Webservice API).
 
 Requires the e-commerce stack up with the Webservice API key provisioned. Run on
-demand (the `integration` marker is deselected by default):
+demand (the `e2e` marker is deselected by default):
 
-    uv run pytest tests/integration/test_catalog.py
+    uv run pytest tests/e2e/test_catalog.py
 
 `sync` is purely additive and idempotent: it creates/patches to match the PIM
 and never deletes, so re-running skips what already matches. Clearing the
@@ -17,7 +17,7 @@ from src.internal_flows.catalog import prestashop as ps
 from src.internal_flows.catalog.client import json_client, xml_client
 from src.internal_flows.catalog.sync import sync_catalog
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.e2e
 
 
 async def test_catalog_sync():

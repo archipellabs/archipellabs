@@ -1,10 +1,10 @@
-"""End-to-end customer-journey integration tests against a live PrestaShop.
+"""End-to-end customer-journey tests against a live PrestaShop (marker: e2e).
 
 Requires a running PrestaShop reachable at SHOP_BASE_URL (default
-`https://localhost`). Skip the whole module by deselecting the `integration`
+`https://localhost`). Skip the whole module by deselecting the `e2e`
 marker:
 
-    uv run pytest -m "not integration"
+    uv run pytest -m "not e2e"
 
 Override via env vars:
 
@@ -21,7 +21,7 @@ from src.external_flows.customer_arrivals.persona import generate_customer_profi
 from src.external_flows.customer_journey.journey import run_customer_journey
 from src.services.browser.service import browser_session
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.e2e
 
 
 def _env_bool(name: str, default: bool) -> bool:

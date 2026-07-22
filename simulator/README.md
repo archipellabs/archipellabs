@@ -86,10 +86,19 @@ Regenerate the PrestaShop API clients after an OpenAPI spec change:
 uv run python scripts/generate_prestashop_clients.py
 ```
 
-Run the tests (unit only by default; integration needs a live PrestaShop):
+Tests come in three tiers by what they need to run:
+
+- `tests/unit/` — isolated units (fakes for collaborators), fast.
+- `tests/component/` — several real components wired in-process over a fake Redis
+  (boundaries stubbed), still hermetic and fast.
+- `tests/e2e/` — hit live services (PrestaShop, the activity Postgres, a real
+  browser); carry the `e2e` marker and are deselected by default.
+
+The default lane runs unit + component (everything except `e2e`):
 
 ```sh
-uv run pytest -m "not integration"
+uv run pytest -m "not e2e"     # what CI runs
+uv run pytest -m e2e           # the live-service tier (needs the stack up)
 ```
 
 Package marker files:

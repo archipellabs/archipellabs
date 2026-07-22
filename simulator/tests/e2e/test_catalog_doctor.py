@@ -1,6 +1,6 @@
 """Catalog doctor + additive sync against a live PrestaShop. Run on demand:
 
-    uv run pytest tests/integration/test_catalog_doctor.py
+    uv run pytest tests/e2e/test_catalog_doctor.py
 
 The sync is additive-only, so the doctor's contract is: ignore EXTRA live items
 (removing them is provisioning's job, not the simulator's) and flag MISSING ones
@@ -14,7 +14,7 @@ from src.internal_flows.catalog.client import json_client, xml_client
 from src.internal_flows.catalog.doctor import _detect_drift
 from src.internal_flows.catalog.sync import HOME_CATEGORY_ID, sync_catalog
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.e2e
 
 
 async def test_doctor_ignores_extra_category():

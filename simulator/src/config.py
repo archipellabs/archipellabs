@@ -52,5 +52,14 @@ class Settings(BaseSettings):
     max_arrivals_per_tick: int = 1000
     random_seed: int | None = None  # set for a reproducible producer run
 
+    # Activity database (PostgreSQL) — records each journey run for charts. Core
+    # infrastructure, always wired (like a database in a FastAPI app): bring
+    # `simulatordb` up and run `alembic upgrade head` before starting. A LOCAL run
+    # uses this localhost DSN; in Docker, SIMULATORDB_URL overrides it with the
+    # in-container hostname.
+    simulatordb_url: str = (
+        "postgresql+psycopg://simulator:changeme_demo@localhost:5432/simulator"
+    )
+
 
 settings = Settings()

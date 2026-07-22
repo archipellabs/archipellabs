@@ -1,6 +1,6 @@
-"""End-to-end over a fake Redis: emitting catalog.sync routes to the catalog
+"""Component test over a fake Redis: emitting catalog.sync routes to the catalog
 pool's handler. The PrestaShop sync logic is stubbed — we only assert the wiring
-(event → handler)."""
+(event → handler). Hermetic (no live services), so it runs in the default lane."""
 
 from fakeredis.aioredis import FakeRedis
 from runtime.broker import stream_name

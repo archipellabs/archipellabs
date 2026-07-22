@@ -9,6 +9,9 @@ dependencies = [
     "pydantic-settings>=2.11.0",
     "playwright>=1.49.0",
     "faker>=40.18.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.2",
 ]
 
 [tool.uv]
@@ -31,7 +34,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 markers = [
-    "integration: hits a live PrestaShop instance at SHOP_BASE_URL (default https://localhost)",
+    "e2e: hits a live external service — PrestaShop at SHOP_BASE_URL (default https://localhost) and/or the activity Postgres at SIMULATORDB_URL. Lives in tests/e2e/; deselected by default in CI. tests/unit (isolated) and tests/component (in-process flows over a fake Redis) need nothing external.",
 ]
 
 [tool.ruff]
