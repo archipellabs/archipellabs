@@ -1,0 +1,357 @@
+/* The chart — an archipelago of app cards + interactive sea-lane flows. */
+.carto-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+.carto-stage {
+  position: relative;
+  width: 1010px;
+  height: 1140px;
+  margin-inline: auto;
+}
+
+/* regions */
+.carto-region {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+.carto-note {
+  position: absolute;
+  left: 0;
+  color: var(--slate-400);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.carto-sep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--color-line);
+}
+.carto-roadmap-arc {
+  position: absolute;
+  right: 0;
+  color: var(--slate-400);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+/* mobile list — simplified vertical stack */
+.carto-list {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.carto-region-m {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+.carto-note-m {
+  margin: -8px 0 14px;
+  color: var(--slate-400);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.carto-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.carto-roadmap-m {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.carto-list .carto-card {
+  position: static;
+}
+.carto-list .carto-card.live {
+  width: 100%;
+}
+.carto-list .carto-card.plan {
+  width: auto;
+}
+
+/* flows */
+.carto-flows {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.carto-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  pointer-events: stroke;
+  cursor: help;
+}
+.carto-lane {
+  fill: none;
+  stroke: var(--green-500);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.carto-flow.live .carto-lane {
+  stroke-dasharray: 7 6;
+  animation: carto-march 0.8s linear infinite;
+}
+.carto-flowlabel {
+  fill: var(--green-700);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  opacity: 0.55;
+  transition: 0.15s;
+}
+.carto-flow.plan .carto-lane {
+  stroke: var(--slate-300);
+  stroke-dasharray: 6 5;
+  animation: carto-march 1.1s linear infinite;
+}
+@keyframes carto-march {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .carto-lane {
+    animation: none;
+  }
+}
+.carto-flow.plan .carto-flowlabel {
+  fill: var(--slate-400);
+}
+.carto-flow:hover .carto-lane {
+  stroke-width: 4;
+  stroke: var(--green-700);
+  filter: drop-shadow(0 0 4px rgba(34, 160, 120, 0.45));
+}
+.carto-flow:hover .carto-flowlabel {
+  opacity: 1;
+  font-weight: 700;
+}
+.carto-flow.plan:hover .carto-lane {
+  stroke: var(--color-text-muted);
+}
+
+/* cards */
+.carto-card {
+  position: absolute;
+  z-index: 2;
+  background: var(--color-surface);
+}
+.carto-card.live {
+  border: 1px solid var(--color-line);
+  border-radius: 3px;
+  box-shadow: var(--shadow-sm);
+  transition: 0.15s;
+  cursor: pointer;
+}
+.carto-card.live:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.carto-thumb {
+  overflow: hidden;
+  border-bottom: 1px solid var(--sand-100);
+  background: var(--sand-100);
+}
+.carto-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.carto-foot {
+  padding: 12px 14px;
+}
+.carto-hd {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.carto-hd b {
+  font-size: 14px;
+}
+.carto-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--green-500);
+}
+.carto-dot.down {
+  background: var(--clay-500);
+}
+.carto-sub {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.carto-auth {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+/* credential box in the info drawer */
+.carto-cred-box {
+  margin-top: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.carto-cred-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--sand-100);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.carto-cred-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.carto-cred-row + .carto-cred-row {
+  border-top: 1px solid var(--color-line);
+}
+.carto-cred-label {
+  flex: none;
+  width: 42px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.carto-cred-val {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: var(--sand-100);
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+.carto-copy-btn {
+  flex: none;
+  min-width: 66px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 3px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  cursor: pointer;
+  transition: 0.12s;
+}
+.carto-copy-btn:hover {
+  border-color: var(--green-500);
+  color: var(--green-700);
+}
+.carto-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 11px;
+}
+.carto-btn {
+  padding: 6px 12px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+.carto-btn.open {
+  border: none;
+  background: var(--green-700);
+  color: #fff;
+}
+.carto-btn.info {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-text-subtle);
+}
+.carto-card.plan {
+  width: 150px;
+  padding: 13px;
+  border: 1.5px dashed var(--slate-300);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+.carto-card.plan b {
+  color: var(--slate-400);
+  font-size: 12px;
+}
+.carto-card.plan .carto-hd {
+  justify-content: space-between;
+}
+.carto-tag {
+  padding: 2px 5px;
+  border: 1px solid var(--color-line);
+  border-radius: 2px;
+  color: var(--slate-400);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+.carto-card.plan .carto-btn.info {
+  margin-top: 9px;
+  background: transparent;
+  color: var(--slate-400);
+}
+
+/* info drawer */
+.carto-drawer {
+  position: fixed;
+  top: 60px;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  max-width: 100%;
+  z-index: 50;
+  padding: 24px;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-line);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+}
+.carto-drawer .close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 18px;
+}

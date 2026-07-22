@@ -1,0 +1,101 @@
+/* Simulator identity — a sibling of the corp site, deliberately distinct.
+   Promote green ("flows / validated" in the design system) into the brand role so
+   the portal reads as the lab's simulator console rather than the teal corp site. */
+.apl-root {
+  --color-brand: var(--green-500);
+  --color-brand-hover: var(--green-600);
+  --color-brand-active: var(--green-700);
+  --color-brand-subtle: var(--green-100);
+  --color-brand-border: var(--green-200);
+  --color-line-accent: var(--green-500);
+  --color-focus: rgba(34, 160, 120, 0.45);
+}
+
+/* App shell -------------------------------------------------------------- */
+body {
+  margin: 0;
+}
+.portal-shell {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+}
+.portal-main {
+  width: 100%;
+  max-width: var(--container);
+  flex: 1;
+  margin-inline: auto;
+  padding: var(--space-2xl) var(--space-lg);
+}
+
+/* Dark console header — the identity flourish (the DS calls dark "for consoles"). */
+.portal-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  height: 60px;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: 0 var(--space-lg);
+  background: var(--abyss-950);
+  border-bottom: var(--border-hair) solid var(--abyss-800);
+}
+.portal-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  text-decoration: none;
+}
+.portal-brand__name {
+  color: var(--sand-50);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-snug);
+}
+.portal-nav {
+  display: flex;
+  gap: var(--space-md);
+}
+.portal-nav a {
+  color: var(--slate-400);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+.portal-nav a:hover {
+  color: var(--sand-50);
+}
+.portal-nav a.is-active {
+  color: var(--sand-50);
+  font-weight: var(--weight-semibold);
+}
+
+/* Admin sign-in — pushed to the right, disabled until the control console ships. */
+.portal-login {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: var(--border-hair) solid var(--abyss-700);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--slate-400);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  cursor: not-allowed;
+}
+.portal-login:disabled {
+  opacity: 0.6;
+}
+
+/* Grids ------------------------------------------------------------------ */
+.portal-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+}

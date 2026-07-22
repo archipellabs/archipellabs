@@ -1,0 +1,234 @@
+/* Chart palette — semantic outcomes (validated CVD-safe) + a single bar hue.
+   completed = green (flows), abandoned = brass (secondary), errored = clay (the
+   rare signal). Text always wears ink tokens; only the marks carry the hue. */
+:root {
+  --chart-completed: var(--green-500);
+  --chart-abandoned: var(--brass-500);
+  --chart-errored: var(--clay-500);
+  --chart-other: var(--slate-400);
+  --chart-bar: var(--green-500);
+  --chart-track: var(--sand-100);
+}
+
+/* hover tooltip */
+.chart-tip {
+  position: fixed;
+  z-index: 200;
+  transform: translate(12px, -140%);
+  pointer-events: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--abyss-950);
+  color: var(--sand-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* proportion bar — 2px surface gaps, 4px rounded ends */
+.prop-bar {
+  display: flex;
+  height: 28px;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--chart-track);
+}
+.prop-seg {
+  min-width: 3px;
+  transition:
+    width 0.5s ease,
+    opacity 0.12s;
+}
+.prop-seg:hover {
+  opacity: 0.82;
+}
+
+/* legend */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 2px;
+}
+.legend-label {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.legend-value {
+  color: var(--color-heading);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* horizontal bar list */
+.bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 36px;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.bar-row__label {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-row__track {
+  height: 16px;
+  border-radius: 4px;
+  background: var(--chart-track);
+}
+.bar-row__fill {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 4px;
+  background: var(--chart-bar);
+  transition:
+    width 0.5s ease,
+    opacity 0.12s;
+}
+.bar-row:hover .bar-row__fill {
+  opacity: 0.82;
+}
+.bar-row__value {
+  color: var(--color-heading);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* column chart */
+.col-chart {
+  display: flex;
+  height: 160px;
+  align-items: stretch;
+  gap: 8px;
+}
+.col {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.col__track {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+}
+.col__bar {
+  width: 100%;
+  max-width: 48px;
+  min-height: 2px;
+  margin: 0 auto;
+  border-radius: 4px 4px 0 0;
+  background: var(--chart-bar);
+  transition:
+    height 0.5s ease,
+    opacity 0.12s;
+}
+.col:hover .col__bar {
+  opacity: 0.82;
+}
+.col__label {
+  margin-top: var(--space-2xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-align: center;
+}
+
+/* data table (accessibility relief for the low-contrast fill) */
+.chart-data {
+  margin-top: var(--space-2xs);
+}
+.chart-data summary {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.chart-table {
+  margin-top: var(--space-xs);
+  border-collapse: collapse;
+}
+.chart-table th,
+.chart-table td {
+  padding: 3px var(--space-md) 3px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: left;
+}
+.chart-table th {
+  color: var(--color-text-subtle);
+  font-weight: var(--weight-medium);
+}
+.chart-table td {
+  color: var(--color-heading);
+}
+
+/* layout */
+.chart-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+@media (max-width: 760px) {
+  .chart-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* live indicator */
+.live-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--green-500);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+}

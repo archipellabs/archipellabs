@@ -1,0 +1,9 @@
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+# The SPA build output (rebuilt in the image); backend static is copied from the
+# build stage.
+frontend/dist
+backend/static
+README.md

@@ -1,9 +1,9 @@
 # Simulator stack.
 #
-# Holds the simulator's own datastore — the activity database (PostgreSQL), which
-# records each customer-journey run so the coming charts app can query it. That DB
-# DOES run in Docker and is brought up by the entrypoint (see the `include:` in
-# docker-compose.yaml).
+# Holds the simulator's own datastore — the activity database (PostgreSQL) that
+# records each customer-journey run — and the PORTAL that visualises it (analytics
+# + cartography). Both run in Docker and are brought up by the entrypoint (see the
+# `include:` in docker-compose.yaml); the gateway routes /portal/ to the portal.
 #
 # The simulator APP itself is still run LOCALLY from Python, not in Docker (see the
 # commented `simulator` service below and the root README, "Simulator (local
@@ -25,14 +25,36 @@ services:
     container_name: simulatordb
     image: postgres:16-alpine
     restart: unless-stopped
-    # All config + demo secrets for the stack live in the stack env_file; the
-    # Postgres image reads the POSTGRES_* keys and ignores the rest.
+    # DB config lives in its own env_file (shared with the portal); the Postgres
+    # image reads the POSTGRES_* keys from it.
     env_file:
-      - ./config/simulator/default.env
+      - ./config/simulator/db.env
     ports:
       - "5432:5432"
     volumes:
       - ./volumes/simulatordb:/var/lib/postgresql/data
+    networks:
+      - archipellabs_default_net
+
+  # The simulator portal: analytics + cartography over the activity DB. One image
+  # (portal/Dockerfile) where FastAPI serves both its API and the built React SPA at
+  # the root. The gateway exposes it on its own TLS port, https://localhost:8443
+  # (config/gateway/nginx.conf) — a subdomain in production.
+  portal:
+    container_name: portal
+    build:
+      context: ../../portal
+      dockerfile: Dockerfile
+    image: archipellabs-portal:latest
+    restart: unless-stopped
+    depends_on:
+      - simulatordb
+    # Loads only db.env (shared with simulatordb) — the activity DB is all the portal
+    # touches, so it never sees the simulator's PrestaShop/Redis secrets in
+    # default.env. Served at the root; the gateway publishes it on its own port
+    # (https://localhost:8443), so there's no context path to configure.
+    env_file:
+      - ./config/simulator/db.env
     networks:
       - archipellabs_default_net
 
@@ -55,10 +77,12 @@ services:
   #   shm_size: 1gb # Chromium needs more than Docker's default 64MB /dev/shm
   #   networks:
   #     - archipellabs_default_net
-  #   # Config ships committed at config/simulator/default.env (demo values, works
-  #   # out of the box). Copy it to .env in the same folder for local overrides —
-  #   # that layer is optional and gitignored.
+  #   # Config ships committed at config/simulator/{db,default}.env (demo values,
+  #   # works out of the box). Copy to .env in the same folder for local overrides —
+  #   # that layer is optional and gitignored. The simulator needs both files (the
+  #   # activity DB in db.env, everything else in default.env).
   #   env_file:
+  #     - ./config/simulator/db.env
   #     - ./config/simulator/default.env
   #     - path: ./config/simulator/.env
   #       required: false

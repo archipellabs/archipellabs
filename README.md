@@ -35,7 +35,7 @@ workspaces/default/
   docker-compose.yaml             entrypoint — creates the network, brings up the stacks + gateway
   docker-compose-ecommerce.yaml   storefront: PrestaShop, MySQL, Redis, provisioning sidecar
   docker-compose-tracking.yaml    Matomo web-analytics stack + its provisioning sidecar
-  docker-compose-simulator.yaml   simulator stack: activity DB (Postgres, in Docker); the simulator app is deferred (needs DNS) — run locally for now
+  docker-compose-simulator.yaml   simulator stack: activity DB (Postgres) + portal (analytics UI at /portal); the simulator app is deferred — run locally
   config/                         stack config: gateway, sidecar sources, demo secrets
   doc/                            TimberWorks brand: design.md, lore.md
   volumes/                        runtime data — DBs + PrestaShop web root (gitignored)

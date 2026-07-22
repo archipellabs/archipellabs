@@ -31,11 +31,13 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "8443:8443" # simulator portal on its own TLS port (a subdomain in prod)
     volumes:
       - ./config/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./config/gateway/certs:/etc/nginx/certs:ro
     depends_on:
       - prestashop
       - matomo
+      - portal
     networks:
       - archipellabs_default_net
