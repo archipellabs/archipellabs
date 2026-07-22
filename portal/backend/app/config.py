@@ -13,5 +13,12 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DATABASE_URL", "SIMULATORDB_URL"),
     )
 
+    # Public URLs the cartography cards open (the visitor's browser follows them).
+    # Default to the local stack; a public deployment overrides these with its own
+    # domains via STOREFRONT_URL / BACKOFFICE_URL / ANALYTICS_URL.
+    storefront_url: str = "https://localhost/"
+    backoffice_url: str = "https://localhost/admin-dev/"
+    analytics_url: str = "https://localhost/stats/"
+
 
 settings = Settings()

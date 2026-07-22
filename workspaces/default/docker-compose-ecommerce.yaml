@@ -42,7 +42,8 @@ services:
 
   # Sidecar for everything that can't be done through the storefront's normal
   # interfaces (API/console/files/SQL). A real PHP project in
-  # ./config/prestashop-sidecar, run straight from the official image (no build):
+  # ../../sidecars/prestashop (shared across workspaces), run straight from the
+  # official image (no build):
   # the source is mounted in and a built-in PSR-4 autoloader means no composer.
   # Replaces the former hand-rolled ps-api-client-init shell. Waits for the install
   # to be effective, then runs the ordered, idempotent plan and exits. Run a single
@@ -62,12 +63,7 @@ services:
       - archipellabs_default_net
     volumes:
       - ./volumes/prestashop:/var/www/html
-      - ./config/prestashop-sidecar:/opt/sidecar:ro
-      # PrestaShop's own web-root .env (reverse-proxy/HTTPS + feature flags),
-      # written into the web root by the PlaceReverseProxyEnv step. A direct
-      # bind-mount onto /var/www/html/.env can't create its mountpoint on a fresh
-      # volume, so it's mounted here (outside the read-only /opt/sidecar tree).
-      - ./config/prestashop/webroot.env:/opt/prestashop.env:ro
+      - ../../sidecars/prestashop:/opt/sidecar:ro
     # Override the image's installer/apache entrypoint: just run our PHP CLI.
     entrypoint: ["php", "/opt/sidecar/bin/provision"]
     restart: "no"

@@ -15,7 +15,7 @@ use Archipel\Provisioning\Kernel\Context;
  */
 final class PlaceReverseProxyEnv extends BaseStep
 {
-    private const SOURCE = '/opt/prestashop.env';
+    private const SOURCE = '/opt/sidecar/resources/webroot.env';
 
     public function description(): string
     {

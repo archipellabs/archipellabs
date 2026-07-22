@@ -48,7 +48,7 @@ services:
       - ./config/matomo/default.env
     volumes:
       - ./volumes/matomo:/var/www/html
-      - ./config/matomo-sidecar:/opt/matomo-sidecar:ro
+      - ../../sidecars/matomo:/opt/matomo-sidecar:ro
     networks:
       - archipellabs_default_net
     # Populate the app dir from the image if empty, then run the headless install.

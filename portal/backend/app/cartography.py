@@ -10,13 +10,15 @@ from typing import Any
 
 import httpx
 
+from app.config import settings
+
 APPS: list[dict[str, Any]] = [
     {
         "id": "storefront",
         "name": "Storefront",
         "sub": "the shop customers see",
         "tier": "public",
-        "url": "https://localhost/",
+        "url": settings.storefront_url,
         "thumb": "storefront",
         "blurb": "The PrestaShop storefront, the public shop the simulated customers browse and buy from.",
     },
@@ -25,7 +27,7 @@ APPS: list[dict[str, Any]] = [
         "name": "Back-office",
         "sub": "PrestaShop admin",
         "tier": "enterprise",
-        "url": "https://localhost/admin-dev/",
+        "url": settings.backoffice_url,
         "thumb": "backoffice",
         # TODO: generate a dedicated read-only back-office user and surface it here.
         "login": {"user": "<TODO>", "password": "<TODO>"},
@@ -36,7 +38,7 @@ APPS: list[dict[str, Any]] = [
         "name": "Web Analytics",
         "sub": "Matomo",
         "tier": "enterprise",
-        "url": "https://localhost/stats/",
+        "url": settings.analytics_url,
         "thumb": "matomo",
         # TODO: generate a dedicated read-only Matomo view user and surface it here.
         "login": {"user": "<TODO>", "password": "<TODO>"},

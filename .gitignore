@@ -28,3 +28,7 @@ build/
 
 # Docker volume data (runtime, not source)
 workspaces/*/volumes/
+
+# The public workspace is the production deployment config (real domains, secrets,
+# TLS wiring) — kept out of this open-source repo, unlike the local `default` one.
+workspaces/public/

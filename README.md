@@ -15,13 +15,14 @@ that actually works rather than sketched on a whiteboard.
 
 ## What's in the box
 
-TimberWorks is three cooperating pieces:
+TimberWorks is a few cooperating pieces:
 
 | Component | Path | What it is |
 |---|---|---|
 | **Simulator** | [`simulator/`](simulator/) | A Python producer/consumer app (Redis Streams + Playwright) that generates synthetic customer traffic and keeps the catalog and stock reconciled. No HTTP server — it is a runtime `App`. |
-| **E-commerce workspace** | [`workspaces/default/`](workspaces/default/) | The Dockerized storefront: PrestaShop + MySQL + Redis behind an nginx TLS gateway. |
-| **Provisioning sidecar** | [`workspaces/default/config/prestashop-sidecar/`](workspaces/default/config/prestashop-sidecar/) | A zero-dependency PHP CLI that turns a fresh PrestaShop install into the TimberWorks shop through ordered, idempotent steps. |
+| **E-commerce workspace** | [`workspaces/default/`](workspaces/default/) | The Dockerized stack: PrestaShop + MySQL + Redis behind an nginx TLS gateway, with Matomo analytics and the activity database. |
+| **Portal** | [`portal/`](portal/) | A FastAPI + React app serving journey analytics and a live cartography of the stack over the activity database. |
+| **Setup sidecars** | [`sidecars/`](sidecars/) | Zero-dependency provisioning/install code — a PrestaShop CLI (ordered, idempotent steps) + a headless Matomo installer — run once as containers and shared across workspaces. |
 
 The simulator and the storefront are deliberately decoupled: the simulator drives
 the shop only through its public front-end (Playwright) and its APIs (Webservice +
@@ -31,15 +32,19 @@ Admin API), never through shared code or a shared database.
 
 ```
 simulator/                        Python load simulator, run locally (see simulator/README.md)
-workspaces/default/
+portal/                           analytics + cartography UI over the activity DB (FastAPI + React)
+sidecars/                         run-once provisioning/install code, shared across workspaces
+  prestashop/                     PHP CLI: turns a fresh PrestaShop install into the TimberWorks shop
+  matomo/                         headless Matomo installer
+workspaces/default/               the local demo stack
   docker-compose.yaml             entrypoint — creates the network, brings up the stacks + gateway
   docker-compose-ecommerce.yaml   storefront: PrestaShop, MySQL, Redis, provisioning sidecar
-  docker-compose-tracking.yaml    Matomo web-analytics stack + its provisioning sidecar
-  docker-compose-simulator.yaml   simulator stack: activity DB (Postgres) + portal (analytics UI at /portal); the simulator app is deferred — run locally
-  config/                         stack config: gateway, sidecar sources, demo secrets
+  docker-compose-tracking.yaml    Matomo web-analytics stack + its install sidecar
+  docker-compose-simulator.yaml   simulator stack: activity DB (Postgres) + portal; the simulator app is deferred — run locally
+  config/                         stack config: gateway (nginx + certs), demo secrets (env files)
   doc/                            TimberWorks brand: design.md, lore.md
   volumes/                        runtime data — DBs + PrestaShop web root (gitignored)
-.github/workflows/                CI: simulator lint / type-check / tests
+.github/workflows/                CI: lint / type-check / tests for the simulator and the portal
 ```
 
 ## Quickstart
@@ -57,7 +62,8 @@ docker compose up -d
 ```
 
 The storefront is served at `https://localhost` (self-signed cert), Matomo at
-`https://localhost/stats/`.
+`https://localhost/stats/`, and the portal (journey analytics + cartography) at
+`https://localhost:8443`.
 
 ### 2. Simulator (local Python — temporary)
 
