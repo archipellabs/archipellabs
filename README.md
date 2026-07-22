@@ -1,7 +1,7 @@
 # TimberWorks — an enterprise-architecture simulator
 
 <p align="center">
-  <img src="doc/architecture.svg" alt="TimberWorks architecture — a local Python simulator drives an nginx TLS gateway that fronts a PrestaShop storefront and Matomo analytics, backed by Redis Streams and provisioned by sidecars." width="900">
+  <img src="doc/architecture.svg" alt="TimberWorks architecture — a local Python simulator drives an nginx TLS gateway that fronts a PrestaShop storefront and Matomo analytics, backed by Redis Streams and a Postgres activity database, and provisioned by sidecars." width="900">
 </p>
 
 [Archipel Labs](https://archipellabs.com) is a public enterprise-architecture
