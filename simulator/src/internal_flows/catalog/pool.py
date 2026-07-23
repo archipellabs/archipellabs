@@ -35,6 +35,11 @@ pool = Pool("catalog", max_slots=1, lifespan=prestashop_lifespan)
 
 @pool.flow(consumes=Topic.CATALOG_SYNC)
 async def sync(ctx: Context, event: Event) -> None:
-    await catalog_sync.sync_catalog(
+    summary = await catalog_sync.sync_catalog(
         ctx.resources["json_http"], ctx.resources["xml_http"]
     )
+    if summary["errors"]:
+        # Returning normally acknowledges the event. Surface an incomplete pass so
+        # it remains visibly failed; the periodic doctor will emit a fresh reconcile
+        # event even on a runtime version that cannot reclaim pending messages yet.
+        raise RuntimeError(f"catalog sync incomplete: {summary['errors']}")

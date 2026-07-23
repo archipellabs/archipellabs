@@ -25,3 +25,24 @@ def make_engine(dsn: str) -> AsyncEngine:
 
 def make_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine, expire_on_commit=False)
+
+
+def run_migrations() -> None:
+    """Upgrade the activity DB to the latest schema, then return.
+
+    Idempotent (a no-op once the DB is at head) and run synchronously at startup —
+    before the async app boots — so a fresh database or a newly added migration
+    needs only an app (re)start, not a separate migration step. Alembic reads the
+    DB URL from ``migrations/env.py`` (a single, env-driven source of truth).
+    """
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+
+    root = Path(__file__).resolve().parents[2]  # the simulator/ project root
+    cfg = Config(str(root / "alembic.ini"))
+    # Absolute path so it resolves no matter the working directory (container /app
+    # or a local run from simulator/).
+    cfg.set_main_option("script_location", str(root / "migrations"))
+    command.upgrade(cfg, "head")

@@ -93,6 +93,30 @@ body {
   opacity: 0.6;
 }
 
+/* Mobile: slim the header so brand + nav + sign-in fit a phone width. */
+@media (max-width: 640px) {
+  .portal-header {
+    gap: var(--space-sm);
+    padding: 0 var(--space-md);
+  }
+  /* Drop the flourish badge; the logo + name still carry the identity. */
+  .portal-header .apl-badge {
+    display: none;
+  }
+  .portal-nav {
+    gap: var(--space-sm);
+  }
+}
+@media (max-width: 440px) {
+  /* Collapse the disabled sign-in to just its lock glyph. */
+  .portal-login {
+    padding: 0 10px;
+  }
+  .portal-login__text {
+    display: none;
+  }
+}
+
 /* Grids ------------------------------------------------------------------ */
 .portal-stats {
   display: grid;

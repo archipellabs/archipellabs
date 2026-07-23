@@ -119,6 +119,10 @@ $siteName = env('MATOMO_SITE_NAME', 'TimberWorks');
 $siteUrl = env('MATOMO_SITE_URL', 'https://localhost/');
 
 // 1. Wait for the database to accept connections (no healthcheck on matomodb).
+// Since PHP 8.1 mysqli THROWS on a refused connection instead of returning false,
+// so a not-yet-ready DB would be an uncaught fatal (exit 255, and no output with
+// display_errors off) rather than a retry. Turn reporting off so the loop can poll.
+mysqli_report(MYSQLI_REPORT_OFF);
 $deadline = time() + 120;
 while (true) {
     $link = @mysqli_connect($dbHost, $dbUser, $dbPass, $dbName);
@@ -294,6 +298,16 @@ passthru(PHP_BINARY . ' ' . escapeshellarg(ROOT . '/console') . ' core:update --
 if ($updateExit !== 0) {
     fwrite(STDERR, "[matomo-sidecar] core:update failed (exit {$updateExit})\n");
     exit($updateExit);
+}
+
+// The sidecar wrote the whole tree as root (app copy, config.ini.php, GeoIP DB).
+// On a Linux host the Apache user (www-data) then can't create its tmp/cache dirs
+// and every request 500s — so hand the tree to www-data now. Docker Desktop remaps
+// bind-mount ownership, so a local run never needs this; it's a no-op there.
+say('setting web-root ownership to www-data...');
+exec('chown -R www-data:www-data ' . escapeshellarg(ROOT), $chownOut, $chownExit);
+if ($chownExit !== 0) {
+    fwrite(STDERR, '[matomo-sidecar] WARNING: chown failed: ' . implode(' ', $chownOut) . "\n");
 }
 
 say('done.');

@@ -10,6 +10,8 @@ Concurrency is bounded by the pool's `max_slots` semaphore.
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import ValidationError
 from runtime import Config, Context, Event, Pool, Resources
@@ -37,6 +39,38 @@ log = logging.getLogger("simulator.customer_journey")
 SIMULATOR_HEADER = {"X-Archipel-Simulator": "1"}
 
 
+def browser_launch_options(config: Config) -> dict[str, Any]:
+    """Translate pool config into the Chromium launch contract."""
+    args = ["--no-sandbox"] if config.get("browser_no_sandbox", False) else []
+    return {"headless": config.get("headless", True), "args": args}
+
+
+def infrastructure_failure_summary(
+    arrival: CustomerArrivalEvent,
+    journey: str,
+    started_at: datetime,
+    error: Exception,
+) -> dict[str, Any]:
+    """Record an infrastructure failure without asking runtime 0.2 to retry it."""
+    return {
+        "flow_id": arrival.id,
+        "journey": journey,
+        "success": False,
+        "completed": False,
+        "abandoned": False,
+        "abandoned_from": None,
+        "error": {"type": type(error).__name__, "message": str(error)},
+        "guest": arrival.intent.customer.model_dump(),
+        "order_reference": None,
+        "selected_product": None,
+        "cart_count": None,
+        "final_url": None,
+        "started_at": started_at,
+        "finished_at": datetime.now(UTC),
+        "events": [],
+    }
+
+
 @asynccontextmanager
 async def browser_lifespan(config: Config) -> AsyncIterator[Resources]:
     if not config.get("base_url"):
@@ -46,7 +80,7 @@ async def browser_lifespan(config: Config) -> AsyncIterator[Resources]:
     from playwright.async_api import async_playwright
 
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch(headless=config.get("headless", True))
+    browser = await pw.chromium.launch(**browser_launch_options(config))
 
     # Activity DB (chart data): opened once for the whole pool, like a database in a
     # FastAPI lifespan. Every journey run is recorded through this repository — it is
@@ -76,14 +110,17 @@ pool = Pool(
 
 @pool.flow(consumes=Topic.CUSTOMER_ARRIVAL)
 async def run_arrival(ctx: Context, event: Event) -> None:
-    # AT-LEAST-ONCE delivery: a crash before ack redelivers the event, which would
-    # re-run a full checkout (not idempotent → a possible duplicate order). Accepted
-    # for a load simulator; revisit with a dedup key if real orders ever matter.
+    # Runtime 0.2 has no pending-message reclaim yet: a handler exception leaves the
+    # event pending, but does not currently redeliver it. Journey/state failures are
+    # therefore converted to recorded summaries. Infrastructure failures are also
+    # terminal observations for this synthetic load: record and acknowledge them
+    # instead of leaving messages pending. Process crashes still need runtime reclaim;
+    # duplicate-order protection must land before enabling that reclaim.
     try:
         arrival = CustomerArrivalEvent.model_validate(event)
     except ValidationError:
-        # No dead-letter queue exists, so a malformed "poison" event would be
-        # redelivered forever. Log and ack it (return) instead of raising.
+        # No dead-letter queue exists. Log and acknowledge malformed input instead
+        # of leaving a permanently invalid event in the pending set.
         log.exception("dropping malformed %s event", Topic.CUSTOMER_ARRIVAL)
         return
 
@@ -95,9 +132,11 @@ async def run_arrival(ctx: Context, event: Event) -> None:
         **SIMULATOR_HEADER,
         **kwargs.get("extra_http_headers", {}),
     }
-    context = await ctx.resources["browser"].new_context(**kwargs)
-    await context.add_init_script(HIDE_CLIENT_HINTS_SCRIPT)
+    started_at = datetime.now(UTC)
+    context = None
     try:
+        context = await ctx.resources["browser"].new_context(**kwargs)
+        await context.add_init_script(HIDE_CLIENT_HINTS_SCRIPT)
         summary = await run_customer_journey(
             context,
             ctx.config["base_url"],
@@ -106,10 +145,24 @@ async def run_arrival(ctx: Context, event: Event) -> None:
             fast=ctx.config.get("fast", False),
             flow_id=arrival.id,
         )
+    except Exception as exc:
+        # Context setup or the journey runner can fail outside its state-level error
+        # boundary. Treat that as an observed failed arrival rather than an implicit
+        # retry, which could create a duplicate order after an ambiguous failure.
+        log.exception("journey infrastructure failed for %s", arrival.id)
+        summary = infrastructure_failure_summary(arrival, journey, started_at, exc)
+
+    try:
         # Record the run into the activity DB (chart data). Best-effort inside the
         # repository, so a DB hiccup can't fail the journey.
         await ctx.resources["activity_repository"].record(
             arrival=arrival, summary=summary
         )
     finally:
-        await context.close()
+        if context is not None:
+            try:
+                await context.close()
+            except Exception:
+                # Teardown happens after the observation is recorded. Do not strand
+                # the queue event solely because Chromium failed to close a context.
+                log.exception("browser context teardown failed for %s", arrival.id)

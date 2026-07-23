@@ -121,19 +121,21 @@
 /* column chart */
 .col-chart {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+.col-chart__plot {
+  display: flex;
   height: 160px;
-  align-items: stretch;
+  align-items: flex-end;
   gap: 8px;
+  border-bottom: var(--border-hair) solid var(--color-line);
 }
 .col {
   display: flex;
   min-width: 0;
   flex: 1;
-  flex-direction: column;
-}
-.col__track {
-  display: flex;
-  flex: 1;
+  height: 100%;
   align-items: flex-end;
 }
 .col__bar {
@@ -150,12 +152,20 @@
 .col:hover .col__bar {
   opacity: 0.82;
 }
+/* Axis ticks: one flex cell per column (same gap), so a sparse label centers under
+   its own bar instead of floating between the zero-height columns. */
+.col-chart__axis {
+  display: flex;
+  gap: 8px;
+}
 .col__label {
-  margin-top: var(--space-2xs);
+  flex: 1;
+  min-width: 0;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
   font-size: 10px;
   text-align: center;
+  white-space: nowrap;
 }
 
 /* data table (accessibility relief for the low-contrast fill) */

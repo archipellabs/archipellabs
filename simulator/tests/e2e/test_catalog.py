@@ -31,10 +31,23 @@ async def test_catalog_sync():
 
 
 async def test_catalog_sync_is_idempotent():
-    """A second pass creates nothing new — everything matches by name."""
+    """A second pass creates no product, option group, value, or combination."""
     async with json_client() as json_http, xml_client() as xml_http:
         await sync_catalog(json_http, xml_http)
+        groups_before = await ps.get_all(json_http, "product_options")
+        values_before = await ps.get_all(json_http, "product_option_values")
+        combinations_before = await ps.get_all(json_http, "combinations")
         summary = await sync_catalog(json_http, xml_http)
+        groups_after = await ps.get_all(json_http, "product_options")
+        values_after = await ps.get_all(json_http, "product_option_values")
+        combinations_after = await ps.get_all(json_http, "combinations")
 
     assert summary["errors"] == []
     assert summary["products_created"] == 0
+    assert summary["products_patched"] == 0
+    assert summary["combinations"] == 0
+    assert {row["id"] for row in groups_after} == {row["id"] for row in groups_before}
+    assert {row["id"] for row in values_after} == {row["id"] for row in values_before}
+    assert {row["id"] for row in combinations_after} == {
+        row["id"] for row in combinations_before
+    }

@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     country: str = "US"
     tick_seconds: float = 5.0
     base_arrivals_per_minute: float = 3.0
+    # Daily/hourly traffic curves follow the simulated market's local clock.
+    arrival_timezone: str = "America/Chicago"
     max_arrivals_per_tick: int = 1000
     random_seed: int | None = None  # set for a reproducible producer run
 

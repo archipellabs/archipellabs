@@ -1,9 +1,11 @@
-"""catalog doctor — producer (Scheduler) that reconciles the catalogue on drift.
+"""catalog doctor — producer (Scheduler) that periodically reconciles the catalogue.
 
 Reads the live catalogue through the Webservice API (robust, decoupled from the
-storefront) and, when it no longer matches the PIM, emits CATALOG_SYNC so the
-reconciling sync converges it. The catalog pool runs with max_slots=1, so even a
-duplicate emit is processed serially.
+storefront), records a concise missing-resource diagnosis, then emits CATALOG_SYNC
+on every tick. A full idempotent pass is intentional: it also repairs mutable
+product fields, category/combination associations, empty image sets, attributes,
+and variants that a cheap existence check cannot prove converged. The catalog pool
+runs with max_slots=1, so duplicate emits are processed serially.
 """
 
 import logging
@@ -26,9 +28,9 @@ scheduler = Scheduler("catalog-doctor")
 async def tick(ctx: Context) -> None:
     async with json_client() as json_http:
         reason = await _detect_drift(json_http)
-    if reason:
-        log.info("catalogue drift (%s) → emitting %s", reason, Topic.CATALOG_SYNC)
-        await ctx.emit(Topic.CATALOG_SYNC)
+    diagnosis = reason or "periodic full reconciliation"
+    log.info("catalogue check (%s) → emitting %s", diagnosis, Topic.CATALOG_SYNC)
+    await ctx.emit(Topic.CATALOG_SYNC)
 
 
 async def _detect_drift(json_http: httpx.AsyncClient) -> str | None:

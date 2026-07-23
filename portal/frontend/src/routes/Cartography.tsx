@@ -31,9 +31,13 @@ function useNarrow(max = 820) {
 
 // Fixed island layout on the 1240×1000 sea-chart (stage-local coordinates).
 const LAYOUT: Record<string, { x: number; y: number; w: number }> = {
-  storefront: { x: 460, y: 40, w: 320 },
-  backoffice: { x: 320, y: 460, w: 290 },
-  analytics: { x: 700, y: 460, w: 290 },
+  // storefront + the enterprise pair are shifted 150px left of their hand-tuned
+  // originals (460/320/700) so the prominent cluster centers in the 1010 stage
+  // instead of leaning right. The two storefront→enterprise paths below move with
+  // them by the same 150 so the arrow geometry is unchanged.
+  storefront: { x: 310, y: 40, w: 320 },
+  backoffice: { x: 170, y: 460, w: 290 },
+  analytics: { x: 550, y: 460, w: 290 },
   // roadmap wraps onto two rows: 4 up top, 3 below
   pim: { x: 110, y: 838, w: 150 },
   erp: { x: 300, y: 838, w: 150 },
@@ -46,8 +50,8 @@ const LAYOUT: Record<string, { x: number; y: number; w: number }> = {
 
 // Hand-routed sea-lanes + label anchors (keyed "from-to").
 const PATHS: Record<string, { d: string; lx: number; ly: number }> = {
-  "storefront-analytics": { d: "M700,325 C 752,385 812,425 845,456", lx: 762, ly: 362 },
-  "storefront-backoffice": { d: "M540,325 C 500,385 470,425 465,456", lx: 388, ly: 362 },
+  "storefront-analytics": { d: "M550,325 C 602,385 662,425 695,456", lx: 612, ly: 362 },
+  "storefront-backoffice": { d: "M390,325 C 350,385 320,425 315,456", lx: 238, ly: 362 },
   "pim-backoffice": { d: "M190,832 C 240,818 320,795 380,752", lx: 238, ly: 772 },
   "backoffice-erp": { d: "M430,752 C 415,792 388,815 375,832", lx: 428, ly: 772 },
 };

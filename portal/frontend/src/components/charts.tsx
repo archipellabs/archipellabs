@@ -182,8 +182,9 @@ export function BarList({ items }: { items: BarItem[] }) {
 
 /* --- column chart (change over time) --------------------------------------- */
 export interface ColumnDatum {
-  label: string;
+  label: string; // full label, shown in the tooltip
   value: number;
+  tick?: string; // axis label; omit to leave the axis blank (thins dense series)
 }
 
 export function ColumnChart({ data }: { data: ColumnDatum[] }) {
@@ -191,17 +192,29 @@ export function ColumnChart({ data }: { data: ColumnDatum[] }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div className="col-chart">
-      {data.map((d) => (
-        <div key={d.label} className="col" {...bind(`${d.label}: ${d.value}`)}>
-          <span className="col__track">
+      {/* Bars sit on a shared baseline; the axis ticks live in their own aligned
+          row below so sparse labels never collide with the zero-height columns. */}
+      <div className="col-chart__plot">
+        {data.map((d, i) => (
+          <div
+            key={`${d.label}-${i}`}
+            className="col"
+            {...bind(`${d.label}: ${d.value}`)}
+          >
             <span
               className="col__bar"
               style={{ height: `${(d.value / max) * 100}%` }}
             />
+          </div>
+        ))}
+      </div>
+      <div className="col-chart__axis" aria-hidden="true">
+        {data.map((d, i) => (
+          <span key={`${d.label}-${i}`} className="col__label">
+            {d.tick ?? ""}
           </span>
-          <span className="col__label">{d.label.slice(5)}</span>
-        </div>
-      ))}
+        ))}
+      </div>
       {layer}
     </div>
   );

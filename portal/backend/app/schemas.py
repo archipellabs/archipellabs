@@ -19,8 +19,10 @@ class Bucket(BaseModel):
     count: int
 
 
-class DayCount(BaseModel):
-    day: str
+class HourCount(BaseModel):
+    """Runs in one hourly bucket over the last 24h (zero-filled, 24 buckets)."""
+
+    hour: str
     count: int
 
 
@@ -36,4 +38,4 @@ class Analytics(BaseModel):
     outcome: OutcomeCounts
     by_journey: list[Bucket]
     by_device: list[Bucket]
-    by_day: list[DayCount]
+    by_hour: list[HourCount]

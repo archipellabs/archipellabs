@@ -10,8 +10,8 @@ export interface Bucket {
   count: number;
 }
 
-export interface DayCount {
-  day: string;
+export interface HourCount {
+  hour: string;
   count: number;
 }
 
@@ -25,7 +25,7 @@ export interface Analytics {
   outcome: OutcomeCounts;
   by_journey: Bucket[];
   by_device: Bucket[];
-  by_day: DayCount[];
+  by_hour: HourCount[];
 }
 
 async function get<T>(path: string): Promise<T> {

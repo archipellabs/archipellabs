@@ -14,7 +14,7 @@ from src.external_flows.contracts import (
     VisitorEnvelope,
 )
 from src.external_flows.customer_journey import pool as pool_module
-from src.external_flows.customer_journey.pool import run_arrival
+from src.external_flows.customer_journey.pool import browser_launch_options, run_arrival
 
 
 class FakeBrowserContext:
@@ -46,6 +46,11 @@ class ExplodingBrowser:
         raise AssertionError("browser must not be touched for a malformed event")
 
 
+class UnavailableBrowser:
+    async def new_context(self, **kwargs):
+        raise RuntimeError("chromium unavailable")
+
+
 class FakeRepository:
     """Stand-in for the always-present activity repository (a no-op recorder)."""
 
@@ -65,6 +70,20 @@ class FakeCtx:
         self.config: dict = config if config is not None else {}
 
     async def emit(self, event_type: str, /, **payload) -> None: ...
+
+
+def test_browser_launch_options_honor_container_sandbox_setting():
+    assert browser_launch_options({"headless": True, "browser_no_sandbox": True}) == {
+        "headless": True,
+        "args": ["--no-sandbox"],
+    }
+
+
+def test_browser_launch_options_keep_sandbox_by_default():
+    assert browser_launch_options({"headless": False}) == {
+        "headless": False,
+        "args": [],
+    }
 
 
 def _valid_event(n_products: int = 1, visitor: VisitorEnvelope | None = None) -> dict:
@@ -182,6 +201,26 @@ async def test_run_arrival_records_activity(monkeypatch):
     assert arrival.id == event["id"]
     assert summary["journey"] == "guest_checkout"
     assert browser.contexts[0].closed is True  # context still torn down
+
+
+async def test_run_arrival_records_and_acknowledges_browser_setup_failure():
+    repository = FakeRepository()
+    ctx = FakeCtx(
+        {"browser": UnavailableBrowser(), "activity_repository": repository},
+        {"base_url": "https://shop.test"},
+    )
+
+    event = _valid_event()
+    await run_arrival(ctx, event)  # terminal observation: must not propagate
+
+    assert len(repository.calls) == 1
+    arrival, summary = repository.calls[0]
+    assert arrival.id == event["id"]
+    assert summary["success"] is False
+    assert summary["error"] == {
+        "type": "RuntimeError",
+        "message": "chromium unavailable",
+    }
 
 
 async def test_run_arrival_drops_malformed_event(monkeypatch):

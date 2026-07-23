@@ -136,13 +136,18 @@ export function Analytics() {
             </Panel>
           </div>
 
-          <Panel eyebrow="THROUGHPUT" title="Runs over time">
+          <Panel eyebrow="THROUGHPUT · LAST 24H · UTC" title="Runs over time">
             <ColumnChart
-              data={data.by_day.map((d) => ({ label: d.day, value: d.count }))}
+              data={data.by_hour.map((h) => ({
+                label: h.hour,
+                value: h.count,
+                // Label only the clock quarters (00/06/12/18) so 24 columns stay legible.
+                tick: parseInt(h.hour, 10) % 6 === 0 ? h.hour : undefined,
+              }))}
             />
             <DataTable
-              columns={["Day", "Runs"]}
-              rows={data.by_day.map((d) => [d.day, d.count])}
+              columns={["Hour", "Runs"]}
+              rows={data.by_hour.map((h) => [h.hour, h.count])}
             />
           </Panel>
         </>

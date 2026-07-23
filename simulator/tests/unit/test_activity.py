@@ -137,8 +137,7 @@ async def test_record_swallows_db_errors(make_arrival, make_summary):
     session = _FakeSession(fail=True)
     repository = JourneyActivityRepository(_FakeSessionmaker(session))
 
-    # Best-effort: a DB failure must not propagate (it must never fail the journey
-    # nor trigger a redelivery).
+    # Best-effort: a DB failure must not propagate or fail the journey handler.
     await repository.record(arrival=make_arrival(), summary=make_summary())
 
     assert session.committed is False

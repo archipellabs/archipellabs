@@ -44,7 +44,7 @@ export function Header() {
         title="Admin sign-in — coming soon (control the simulator)"
       >
         {LOCK}
-        Sign in
+        <span className="portal-login__text">Sign in</span>
       </button>
     </header>
   );

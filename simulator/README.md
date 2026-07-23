@@ -9,8 +9,8 @@ Two external flows, decoupled through the `customer.arrival` Redis stream:
 
 - **`customer_arrivals`** (producer / `Scheduler`) — on every tick, computes the
   current traffic intensity, Poisson-samples arrivals, manages an in-memory pool
-  of customer identities (new vs returning), builds a website-agnostic business
-  intent, and emits a `customer.arrival` event.
+  of fresh customer identities, builds a website-agnostic business intent, and
+  emits a `customer.arrival` event. Returning visitors are a later-stage mechanic.
 - **`customer_journey`** (consumer / `Pool`) — a pool of workers backed by one
   shared Chromium process; each event runs a Playwright state machine through the
   storefront.
@@ -20,8 +20,9 @@ driving PrestaShop through its Webservice/Admin APIs — never the storefront:
 
 - **`catalog`** — a `sync` consumer (`pool.py`) that reconciles the local PIM
   (`data/pim/`) into PrestaShop on a `catalog.sync` event (purely additive — it
-  never deletes), plus a `doctor` producer (`doctor.py`) that periodically checks
-  the live catalogue for drift and emits `catalog.sync` to converge it.
+  never deletes), plus a `doctor` producer (`doctor.py`) that emits a full,
+  idempotent reconciliation on a timer. The full pass repairs field and association
+  drift as well as missing resources.
 - **`stock`** — a producer (`scheduler.py`) that tops tracked products back up
   when their stock dips below a floor.
 
@@ -62,11 +63,11 @@ docker compose -f ../workspaces/default/docker-compose.yaml up -d
 ```
 
 The storefront is seeded by the simulator itself: the **catalog** flow syncs the
-local PIM (`data/pim/`) into PrestaShop, and the **catalog doctor** detects an
-empty or drifted catalogue and triggers that sync on a timer. Both are enabled by
-default (`CATALOG_ENABLED`, `CATALOG_DOCTOR_ENABLED`). Clearing PrestaShop's
-install demo data is a separate, setup-time concern handled by the provisioning
-sidecar — not the simulator.
+local PIM (`data/pim/`) into PrestaShop, and the **catalog doctor** triggers a full
+idempotent reconciliation on a timer. Both are enabled by default
+(`CATALOG_ENABLED`, `CATALOG_DOCTOR_ENABLED`). Clearing PrestaShop's install demo
+data is a separate, setup-time concern handled by the provisioning sidecar — not
+the simulator.
 
 Start the simulator (producer + consumer in one process; Ctrl-C to stop):
 
@@ -76,7 +77,19 @@ uv run python -m src.app
 
 It logs the topology at boot, then streams JSONL journey events on stdout. Config
 comes from `.env` (see `src/config.py`): `REDIS_URL`, `SHOP_BASE_URL`, the
-PrestaShop API credentials, and `JOURNEY_SLOTS` (consumer concurrency).
+PrestaShop API credentials, `JOURNEY_SLOTS` (consumer concurrency), and
+`ARRIVAL_TIMEZONE` (the local clock used by the daily traffic curve).
+
+### Delivery behavior
+
+`archipellabs-runtime` 0.2 acknowledges a message after its handler returns. It
+does not yet reclaim a message left pending by a crashed or failed handler. The
+journey flow treats browser-state and infrastructure failures as terminal,
+recorded observations and then acknowledges them; only a process interruption can
+leave an arrival pending. The catalog doctor emits a fresh periodic reconciliation,
+so catalog convergence does not depend on reclaim. Pending-message reclaim and
+duplicate-order protection must land together before customer-arrival delivery can
+be described as at-least-once.
 
 ## Development
 

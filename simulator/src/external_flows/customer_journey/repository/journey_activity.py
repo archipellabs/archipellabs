@@ -3,7 +3,7 @@
 The flow-specific persistence calls live here (generic engine/session plumbing is
 in src/infrastructure/db.py). Built on a shared sessionmaker + this flow's own
 entity. Best-effort: a DB hiccup is logged (once per outage) and swallowed, never raised,
-so it can neither fail the journey nor trigger a redelivery.
+so it cannot fail the journey handler.
 """
 
 import logging

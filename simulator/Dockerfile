@@ -41,6 +41,12 @@ RUN /opt/venv/bin/playwright install --with-deps chromium \
 COPY src/ ./src/
 COPY data/ ./data/
 
+# 4) Alembic config + migrations for the activity DB. Shipped so a containerised
+# deploy can bring the schema up to date (the `simulator-migrate` one-off service
+# runs `alembic upgrade head`); locally the developer runs alembic on the host.
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
+
 # Container defaults — override per-deployment (compose env / -e).
 #  - Chromium must run with --no-sandbox inside a container (BROWSER_NO_SANDBOX).
 #  - Point at the compose service names; secrets (API keys) come from env/.env,

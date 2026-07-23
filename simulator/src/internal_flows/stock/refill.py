@@ -59,8 +59,7 @@ async def _product_id_by_reference(
     r = await json_http.get(
         "/products", params={"filter[reference]": reference, "display": "full"}
     )
-    if r.status_code != 200:
-        return None
+    r.raise_for_status()
     data = r.json()
     if isinstance(data, list):  # no match → []
         return None
@@ -75,8 +74,7 @@ async def _stock_availables(
         "/stock_availables",
         params={"filter[id_product]": product_id, "display": "full"},
     )
-    if r.status_code != 200:
-        return []
+    r.raise_for_status()
     data = r.json()
     if isinstance(data, list):
         return []

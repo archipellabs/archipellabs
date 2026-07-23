@@ -17,8 +17,8 @@ from src.infrastructure.db import Base
 class JourneyActivity(Base):
     """One recorded customer-journey run — the unit charts are built from.
 
-    `id` is the arrival id (`a_…`), reused as the run id, so a redelivered arrival
-    re-recording the same run is an idempotent upsert rather than a duplicate row.
+    `id` is the arrival id (`a_…`), reused as the run id, so a replay of the same
+    arrival is an idempotent insert rather than a duplicate row.
     """
 
     __tablename__ = "journey_activity"
