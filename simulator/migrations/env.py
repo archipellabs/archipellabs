@@ -19,7 +19,14 @@ from src.external_flows.customer_journey.models import (  # noqa: F401
 from src.infrastructure.db import Base
 
 config = context.config
-if config.config_file_name is not None:
+# Configure global logging only for the standalone `alembic` CLI. Embedded at app
+# startup (run_migrations), fileConfig would hijack logging — hold root at WARNING
+# and disable already-imported loggers — muting the runtime; the caller signals
+# that mode through config.attributes.
+if (
+    config.attributes.get("configure_logging", True)
+    and config.config_file_name is not None
+):
     fileConfig(config.config_file_name)
 
 config.set_main_option("sqlalchemy.url", settings.simulatordb_url)

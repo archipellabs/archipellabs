@@ -236,10 +236,24 @@ $general = $config->General;
 $proxySettings = [
     'proxy_client_headers' => ['HTTP_X_FORWARDED_FOR'],
     'proxy_host_headers' => ['HTTP_X_FORWARDED_HOST'],
-    // Matomo picks the LAST X-Forwarded-For entry not listed here; without
-    // these the appended gateway/Docker peers win over the client value.
-    'proxy_ips' => ['172.31.0.0/24', '192.168.0.0/16'],
+    // Matomo returns the RIGHTMOST X-Forwarded-For entry NOT listed here, so
+    // EVERY internal proxy hop must be trusted or it wins over the client value.
+    // The chain crosses two Docker projects: this stack (pinned 172.31.0.0/24)
+    // and the corp edge on its own auto-assigned bridge (172.18.0.0/16, and
+    // Docker may pick any 172.16–31 /16 on a redeploy). Trust the whole RFC1918
+    // space rather than one subnet. Safe: the corp edge appends the client's
+    // PUBLIC IP — the only non-private entry — so Matomo lands on it; a
+    // client-spoofed X-Forwarded-For stays to the left and is ignored.
+    'proxy_ips' => ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
 ];
+// The public hostname(s) Matomo is served at behind the gateway. Matomo rejects any
+// Host not in trusted_hosts (the "accessing from X but configured for Y" warning).
+// Comma-separated; empty for a local run (localhost is already trusted). Merged here
+// (not just written on first install) so it also lands on an existing config.ini.php.
+$trustedHosts = array_filter(array_map('trim', explode(',', env('MATOMO_TRUSTED_HOSTS'))));
+if ($trustedHosts !== []) {
+    $proxySettings['trusted_hosts'] = $trustedHosts;
+}
 $proxyChanged = false;
 foreach ($proxySettings as $key => $values) {
     $missing = array_diff($values, $general[$key] ?? []);
@@ -248,12 +262,21 @@ foreach ($proxySettings as $key => $values) {
         $proxyChanged = true;
     }
 }
+// Behind the corp TLS edge Matomo is always reached over HTTPS, but the edge
+// connects to it over plain HTTP, so its server-side scheme check sees "not
+// secure" and warns (X-Forwarded-Proto isn't honored for that check). Assume the
+// secure scheme — but ONLY in the public deployment (signalled by trusted hosts);
+// the local http://localhost:8080 run is genuinely HTTP and must not be forced.
+if ($trustedHosts !== [] && (int) ($general['assume_secure_protocol'] ?? 0) !== 1) {
+    $general['assume_secure_protocol'] = 1;
+    $proxyChanged = true;
+}
 if ($proxyChanged) {
     $config->General = $general;
     $config->forceSave();
-    say('enabled proxy client-IP settings (X-Forwarded-For + trusted proxy ranges)');
+    say('merged proxy client-IP + trusted-host settings');
 } else {
-    say('proxy client-IP settings already configured');
+    say('proxy client-IP + trusted-host settings already configured');
 }
 
 // 7. Geolocation: install the free DB-IP City Lite database (no account needed)

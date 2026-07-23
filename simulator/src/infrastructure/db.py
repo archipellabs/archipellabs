@@ -45,4 +45,8 @@ def run_migrations() -> None:
     # Absolute path so it resolves no matter the working directory (container /app
     # or a local run from simulator/).
     cfg.set_main_option("script_location", str(root / "migrations"))
+    # Embedded run: skip alembic's fileConfig (env.py reads this flag) so it does
+    # not hijack the app's logging — it would disable existing loggers and hold
+    # root at WARNING, muting the runtime's INFO output past the migration line.
+    cfg.attributes["configure_logging"] = False
     command.upgrade(cfg, "head")
