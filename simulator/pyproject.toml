@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Load simulator that drives synthetic customer traffic against the PrestaShop storefront"
 requires-python = ">=3.14"
 dependencies = [
-    "archipellabs-runtime>=0.2.0",
+    "archipellabs-runtime>=0.3.0,<0.4",
     "prestashop-clients",
     "pydantic-settings>=2.11.0",
     "playwright>=1.49.0",

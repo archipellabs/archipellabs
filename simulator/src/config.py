@@ -25,7 +25,12 @@ class Settings(BaseSettings):
 
     # Runtime (Redis-backed producer/consumer)
     redis_url: str = "redis://localhost:6379/0"
-    namespace: str = ""
+    namespace: str = "sim"
+    """Prefixes every runtime key. Deliberately not empty: the storefront stack
+    shares this Redis, and the runtime's switch registry lives under a fixed key,
+    so an unprefixed deployment can have a service silently paused by anything
+    else that writes one — another environment, a stray redis-cli, a test run.
+    Override per environment (NAMESPACE=staging) to isolate them from each other."""
 
     # Flow kill-switches (App.include enabled=) — toggle each flow on/off.
     journey_enabled: bool = True

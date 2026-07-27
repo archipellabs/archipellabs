@@ -1,8 +1,9 @@
 """run_arrival tested with a fake ctx and a monkeypatched journey runner.
 
-The flow handler is returned unchanged by `@pool.flow`, so it is callable
-directly. We stub `run_customer_journey` to avoid driving a real browser, and
-assert the wiring: validate → adapter → new_context → run → close.
+The handler is returned unchanged by `@service.action`, so it is callable
+directly — and it now receives a validated `CustomerArrivalEvent`, because the
+registration declares `params=`. We stub `run_customer_journey` to avoid driving
+a real browser, and assert the wiring: adapter → new_context → run → close.
 """
 
 from src.external_flows.contracts import (
@@ -15,6 +16,7 @@ from src.external_flows.contracts import (
 )
 from src.external_flows.customer_journey import pool as pool_module
 from src.external_flows.customer_journey.pool import browser_launch_options, run_arrival
+from src.external_flows.topics import Topic
 
 
 class FakeBrowserContext:
@@ -39,11 +41,6 @@ class FakeBrowser:
         self.contexts.append(ctx)
         self.context_kwargs.append(kwargs)
         return ctx
-
-
-class ExplodingBrowser:
-    async def new_context(self, **kwargs):
-        raise AssertionError("browser must not be touched for a malformed event")
 
 
 class UnavailableBrowser:
@@ -86,7 +83,9 @@ def test_browser_launch_options_keep_sandbox_by_default():
     }
 
 
-def _valid_event(n_products: int = 1, visitor: VisitorEnvelope | None = None) -> dict:
+def _valid_event(
+    n_products: int = 1, visitor: VisitorEnvelope | None = None
+) -> CustomerArrivalEvent:
     profile = CustomerProfile(
         firstname="A",
         lastname="B",
@@ -107,7 +106,7 @@ def _valid_event(n_products: int = 1, visitor: VisitorEnvelope | None = None) ->
         ),
         visitor=visitor,
     )
-    return event.model_dump(mode="json")
+    return event
 
 
 async def test_run_arrival_runs_journey_and_closes_context(monkeypatch):
@@ -133,7 +132,7 @@ async def test_run_arrival_runs_journey_and_closes_context(monkeypatch):
     assert captured["journey"] == "guest_checkout"
     assert captured["base_url"] == "https://shop.test"
     assert captured["guest"].email == "a.b@example.com"
-    assert captured["flow_id"] == event["id"]  # consumer traces under the arrival id
+    assert captured["flow_id"] == event.id  # consumer traces under the arrival id
     assert browser.contexts and browser.contexts[0].closed is True
 
 
@@ -198,7 +197,7 @@ async def test_run_arrival_records_activity(monkeypatch):
 
     assert len(repository.calls) == 1
     arrival, summary = repository.calls[0]
-    assert arrival.id == event["id"]
+    assert arrival.id == event.id
     assert summary["journey"] == "guest_checkout"
     assert browser.contexts[0].closed is True  # context still torn down
 
@@ -215,7 +214,7 @@ async def test_run_arrival_records_and_acknowledges_browser_setup_failure():
 
     assert len(repository.calls) == 1
     arrival, summary = repository.calls[0]
-    assert arrival.id == event["id"]
+    assert arrival.id == event.id
     assert summary["success"] is False
     assert summary["error"] == {
         "type": "RuntimeError",
@@ -223,17 +222,13 @@ async def test_run_arrival_records_and_acknowledges_browser_setup_failure():
     }
 
 
-async def test_run_arrival_drops_malformed_event(monkeypatch):
-    called = False
+def test_the_action_declares_its_params_model():
+    """Dropping a malformed arrival used to be this handler's job — it opened with
+    a model_validate and a log-and-return. That is now the runtime's: `params=`
+    validates before the handler runs and reports ParamsInvalid to the producer
+    instead of swallowing it. This pins the declaration that makes it so."""
+    [registration] = [
+        r for r in pool_module.service.consumers if r.name == Topic.CUSTOMER_ARRIVAL
+    ]
 
-    async def fake_journey(*args, **kwargs):
-        nonlocal called
-        called = True
-
-    monkeypatch.setattr(pool_module, "run_customer_journey", fake_journey)
-    ctx = FakeCtx({"browser": ExplodingBrowser()})
-
-    # Must not raise, must not touch the browser, must not run a journey.
-    await run_arrival(ctx, {"not": "a valid event"})
-
-    assert called is False
+    assert registration.params is CustomerArrivalEvent

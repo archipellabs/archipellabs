@@ -1,9 +1,9 @@
 """Application entrypoint — wire the external flows onto the runtime and run.
 
-No FastAPI, no REST: the simulator is a runtime `App`. The customer-arrivals
-Scheduler (producer) and the customer-journey Pool (consumer) talk only through
-the `customer.arrival` Redis stream, so they can run together in this one process
-or be split into separate deployments later via `enabled=` flags.
+No FastAPI, no REST: the simulator is a runtime `App` of services. The
+customer-arrivals producer and the customer-journey consumer share only the
+`customer.arrival` name, so they can run together in this one process or be split
+into separate deployments later via `enabled=` flags.
 
 All knobs come from `Settings` (.env); see `src/config.py`.
 
@@ -13,45 +13,48 @@ All knobs come from `Settings` (.env); see `src/config.py`.
 from runtime import App
 
 from src.config import settings
-from src.external_flows.customer_arrivals.scheduler import scheduler
-from src.external_flows.customer_journey.pool import pool as journey_pool
+from src.external_flows.customer_arrivals.scheduler import service as arrivals_service
+from src.external_flows.customer_journey.pool import service as journey_service
 from src.infrastructure.db import run_migrations
-from src.internal_flows.catalog.doctor import scheduler as catalog_doctor
-from src.internal_flows.catalog.pool import pool as catalog_pool
-from src.internal_flows.stock.scheduler import scheduler as stock_scheduler
+from src.internal_flows.catalog.service import service as catalog_service
+from src.internal_flows.stock.scheduler import service as stock_service
 
 
 def build_app() -> App:
-    # One runtime App holds every flow; each `include(..., enabled=)` is a
-    # kill-switch, so any flow can be turned off here (or split into its own
-    # deployment later) without touching the others. `config=` is the per-flow
-    # settings bag the flow reads from its `Context`.
+    # One runtime App holds every service. `include(..., enabled=)` is a WIRING
+    # decision taken once: a service left out here is never constructed and its
+    # lifespan never runs, which is how `journey_enabled=False` keeps Chromium
+    # from launching at all. To pause something that IS mounted, without a
+    # restart, use a runtime switch instead (`runtime.switches`).
+    # `config=` is the per-service settings bag it reads from its `Context`.
     app = App(redis=settings.redis_url, namespace=settings.namespace)
 
-    # Consumer of customer.arrival: drives a browser through a PrestaShop journey.
+    # Executant of customer.arrival: drives a browser through a PrestaShop journey.
     app.include(
-        journey_pool,
+        journey_service,
         enabled=settings.journey_enabled,
         config={
             "headless": settings.headless,
             "browser_no_sandbox": settings.browser_no_sandbox,
             "base_url": settings.shop_base_url,
             "fast": settings.fast,
-            # Activity DB (chart data): the pool opens this once in its lifespan and
-            # records every journey run through it — core infrastructure, always on.
+            # Activity DB (chart data): the service opens this once in its lifespan
+            # and records every journey run through it — core infrastructure,
+            # always on.
             "dsn": settings.simulatordb_url,
         },
     )
 
-    # Internal (shop-side) flows: keep the catalog/stock in sync with the storefront.
-    app.include(catalog_pool, enabled=settings.catalog_enabled)
-    app.include(catalog_doctor, enabled=settings.catalog_doctor_enabled)
-    app.include(stock_scheduler, enabled=settings.stock_enabled)
+    # Internal (shop-side) services: keep the catalog/stock in sync with the
+    # storefront. The catalog service holds both the sync action and the doctor
+    # that calls it; the doctor keeps its own flag, applied at registration.
+    app.include(catalog_service, enabled=settings.catalog_enabled)
+    app.include(stock_service, enabled=settings.stock_enabled)
 
-    # Producer of customer.arrival: emits simulated arrivals on a timer. Off by
-    # default (arrivals_enabled) so the app can run consumer-only.
+    # Producer of customer.arrival: dispatches simulated arrivals on a timer. Off
+    # by default (arrivals_enabled) so the app can run consumer-only.
     app.include(
-        scheduler,
+        arrivals_service,
         enabled=settings.arrivals_enabled,
         config={
             "country": settings.country,

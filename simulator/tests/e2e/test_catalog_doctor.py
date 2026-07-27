@@ -11,7 +11,7 @@ import pytest
 
 from src.internal_flows.catalog import prestashop as ps
 from src.internal_flows.catalog.client import json_client, xml_client
-from src.internal_flows.catalog.doctor import _detect_drift
+from src.internal_flows.catalog.service import _detect_drift
 from src.internal_flows.catalog.sync import HOME_CATEGORY_ID, sync_catalog
 
 pytestmark = pytest.mark.e2e

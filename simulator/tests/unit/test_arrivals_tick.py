@@ -24,9 +24,12 @@ class FakeContext:
         self.resources = resources
         self.config = config
         self.emitted: list[tuple[str, dict]] = []
+        self.ttls: list[str | float | None] = []
 
-    async def emit(self, event_type: str, /, **payload) -> None:
-        self.emitted.append((event_type, payload))
+    async def dispatch(self, action: str, /, *, ttl=None, **payload) -> str:
+        self.emitted.append((action, payload))
+        self.ttls.append(ttl)
+        return "task-id"
 
 
 def _resources(*, base: float, seed: int = 7) -> dict:

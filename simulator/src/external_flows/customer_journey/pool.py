@@ -1,10 +1,13 @@
-"""customer_journey — consumer (Pool) of Topic.CUSTOMER_ARRIVAL.
+"""customer_journey — the service executing Topic.CUSTOMER_ARRIVAL.
 
-The pool's lifespan owns a single shared Chromium process (POOL scope, opened
-once). Each arrival event is one isolated simulated user: the flow opens a fresh
-browser context, translates the business intent into a concrete PrestaShop
+The service's lifespan owns a single shared Chromium process (SERVICE scope,
+opened once). Each arrival is one isolated simulated user: the action opens a
+fresh browser context, translates the business intent into a concrete PrestaShop
 journey, runs the Playwright state machine, then tears the context down.
-Concurrency is bounded by the pool's `max_slots` semaphore.
+Concurrency is bounded by `max_slots` — here a RAM ceiling on browser contexts.
+
+Playwright is the heaviest cost profile in the app, which is exactly why it is its
+own service: a flood of browser sessions cannot starve the catalog's budget.
 """
 
 import logging
@@ -13,8 +16,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import ValidationError
-from runtime import Config, Context, Event, Pool, Resources
+from runtime import Config, Context, Resources, Service
 
 from src.config import settings
 from src.external_flows.contracts import CustomerArrivalEvent
@@ -103,27 +105,21 @@ async def browser_lifespan(config: Config) -> AsyncIterator[Resources]:
         await engine.dispose()
 
 
-pool = Pool(
+service = Service(
     "customer-journey", max_slots=settings.journey_slots, lifespan=browser_lifespan
 )
 
 
-@pool.flow(consumes=Topic.CUSTOMER_ARRIVAL)
-async def run_arrival(ctx: Context, event: Event) -> None:
-    # Runtime 0.2 has no pending-message reclaim yet: a handler exception leaves the
-    # event pending, but does not currently redeliver it. Journey/state failures are
-    # therefore converted to recorded summaries. Infrastructure failures are also
-    # terminal observations for this synthetic load: record and acknowledge them
-    # instead of leaving messages pending. Process crashes still need runtime reclaim;
-    # duplicate-order protection must land before enabling that reclaim.
-    try:
-        arrival = CustomerArrivalEvent.model_validate(event)
-    except ValidationError:
-        # No dead-letter queue exists. Log and acknowledge malformed input instead
-        # of leaving a permanently invalid event in the pending set.
-        log.exception("dropping malformed %s event", Topic.CUSTOMER_ARRIVAL)
-        return
-
+@service.action(Topic.CUSTOMER_ARRIVAL, params=CustomerArrivalEvent)
+async def run_arrival(ctx: Context, arrival: CustomerArrivalEvent) -> None:
+    # `params=` means the runtime validated this before the handler ran; a
+    # malformed body never gets here, and comes back to the producer as a typed
+    # ParamsInvalid instead of being logged and dropped in silence.
+    #
+    # Journey and state failures are still converted to recorded summaries rather
+    # than raised. There is no reclaim, so raising would not retry — and a retry
+    # after an ambiguous failure could place a duplicate order. Duplicate-order
+    # protection has to land before this flow can tolerate redelivery.
     journey = journey_from_arrival(arrival)
     kwargs = context_kwargs(ctx.resources.get("devices", {}), arrival.visitor)
     # Mark this as simulated traffic with a tracker-agnostic header on every

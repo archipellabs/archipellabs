@@ -5,9 +5,8 @@ import xml.etree.ElementTree as ET
 import httpx
 import pytest
 
-from src.internal_flows.catalog import doctor
-from src.internal_flows.catalog import pool as catalog_pool
 from src.internal_flows.catalog import prestashop as ps
+from src.internal_flows.catalog import service as catalog_service
 from src.internal_flows.catalog import sync as catalog_sync
 from src.internal_flows.topics import Topic
 
@@ -319,14 +318,20 @@ class _CatalogContext:
         self.resources = {"json_http": object(), "xml_http": object()}
 
 
-async def test_catalog_handler_raises_when_summary_is_incomplete(monkeypatch):
+async def test_catalog_action_returns_the_summary_including_errors(monkeypatch):
+    """Under 0.2 this raised, purely to make an incomplete pass visible — there
+    was no return channel. The doctor now `call`s it and reads the summary, so an
+    incomplete pass is a value, not an exception."""
+    errors = [{"name": "Chest", "reason": "patch failed"}]
+
     async def incomplete(*args, **kwargs):
-        return {"errors": [{"name": "Chest", "reason": "patch failed"}]}
+        return {"errors": errors}
 
     monkeypatch.setattr(catalog_sync, "sync_catalog", incomplete)
 
-    with pytest.raises(RuntimeError, match="catalog sync incomplete"):
-        await catalog_pool.sync(_CatalogContext(), {})
+    summary = await catalog_service.sync(_CatalogContext(), {})
+
+    assert summary["errors"] == errors
 
 
 class _JsonClientContext:
@@ -338,23 +343,25 @@ class _JsonClientContext:
 
 
 class _DoctorContext:
-    def __init__(self) -> None:
-        self.emitted: list[str] = []
+    def __init__(self, summary: dict | None = None) -> None:
+        self.called: list[str] = []
+        self._summary = summary if summary is not None else {"errors": []}
 
-    async def emit(self, topic: str, **payload):
-        self.emitted.append(topic)
+    async def call(self, action: str, /, **kwargs):
+        self.called.append(action)
+        return self._summary
 
 
-async def test_doctor_emits_full_reconciliation_even_when_existence_check_is_clean(
+async def test_doctor_calls_full_reconciliation_even_when_existence_check_is_clean(
     monkeypatch,
 ):
     async def clean(http):
         return None
 
-    monkeypatch.setattr(doctor, "json_client", _JsonClientContext)
-    monkeypatch.setattr(doctor, "_detect_drift", clean)
+    monkeypatch.setattr(catalog_service, "json_client", _JsonClientContext)
+    monkeypatch.setattr(catalog_service, "_detect_drift", clean)
     ctx = _DoctorContext()
 
-    await doctor.tick(ctx)
+    await catalog_service.doctor(ctx)
 
-    assert ctx.emitted == [Topic.CATALOG_SYNC]
+    assert ctx.called == [Topic.CATALOG_SYNC]
