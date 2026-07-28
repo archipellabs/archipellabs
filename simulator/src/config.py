@@ -51,7 +51,11 @@ class Settings(BaseSettings):
     browser_no_sandbox: bool = False  # containers need Chromium's --no-sandbox
 
     # customer_arrivals producer
-    country: str = "US"
+    market_mix: dict[str, float] = {"US": 0.75, "CA": 0.25}
+    """Which markets the shop draws traffic from, and in what proportion.
+    Relative weights, not percentages. Set as JSON: MARKET_MIX='{"US": 1}'.
+    Every key needs a location catalogue in customer_arrivals/envelope.py and an
+    *active* country in the shop, or its customers cannot check out."""
     tick_seconds: float = 5.0
     base_arrivals_per_minute: float = 3.0
     # Daily/hourly traffic curves follow the simulated market's local clock.

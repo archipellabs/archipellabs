@@ -1,15 +1,18 @@
 """Visitor envelopes — which device, and from where, a simulated customer arrives.
 
 Universal shape data, constants not config (like the rate curves in rate.py): a
-fixed catalogue of US locations and a device mix roughly shaped like US
-e-commerce traffic (mobile-heavy, iOS-heavy). Each location is anchored on a
-university /16 — among the more stably geolocated public ranges — that resolves
-~95% consistently to its region. The analytics tracker geolocates the *full* IP,
-so a location surfaces as varied nearby cities/neighbourhoods and the odd
-outlier; that spread is expected (and a
+fixed catalogue of locations per market and a device mix roughly shaped like
+North American e-commerce traffic (mobile-heavy, iOS-heavy). Each location is
+anchored on a university /16 — among the more stably geolocated public ranges —
+that resolves ~95% consistently to its region. The analytics tracker geolocates
+the *full* IP, so a location surfaces as varied nearby cities/neighbourhoods and
+the odd outlier; that spread is expected (and a
 fair picture of free-GeoIP accuracy) — the region and timezone are what we
 control. The abstract device keys are the producer's vocabulary; the journey
 consumer maps them to concrete browser profiles (customer_journey/devices.py).
+
+*Which* markets arrive, and in what proportion, is a per-shop knob and lives with
+the identity pool; this module only answers "where in that market".
 
 IP generation is the producer's job: it hands each visitor a distinct address so
 the analytics tracker counts a distinct visitor (its fingerprint keys on the full
@@ -38,6 +41,11 @@ class Location:
     # "correct" one to its real-world owner without re-checking that DB, whose
     # free tier disagrees with allocation in places. The region is what we pin;
     # the exact city may vary to a neighbour.
+    #
+    # To re-check a candidate, sample hosts across the /16 against the database
+    # the tracker actually reads (misc/DBIP-City.mmdb in the Matomo container)
+    # rather than a public whois — the two disagree, and only the former decides
+    # what the analytics report.
     prefix: str
 
 
@@ -60,8 +68,41 @@ US_LOCATIONS: tuple[Location, ...] = (
     Location("Seattle", "America/Los_Angeles", "128.95"),  # U. Washington
 )
 
-# Abstract device keys, weighted like US e-commerce traffic (weights need not
-# sum to 1, cf. JOURNEYS in customer_journey/transitions.py).
+# The mix of provinces roughly tracks population (Ontario heaviest, then Quebec,
+# BC and Alberta), the same way US_LOCATIONS leans east — locations are drawn
+# uniformly, so the *composition* of the tuple is what shapes the geography.
+# No two entries share a city label: callers resolve a location by city.
+CA_LOCATIONS: tuple[Location, ...] = (
+    Location("Toronto", "America/Toronto", "128.100"),  # U. Toronto
+    Location("Ottawa", "America/Toronto", "137.122"),  # U. Ottawa
+    Location("Waterloo", "America/Toronto", "129.97"),  # U. Waterloo
+    Location("Hamilton", "America/Toronto", "130.113"),  # McMaster
+    Location("Montreal", "America/Toronto", "132.206"),  # McGill
+    Location("Quebec City", "America/Toronto", "132.203"),  # U. Laval
+    Location("Vancouver", "America/Vancouver", "137.82"),  # UBC
+    Location("Victoria", "America/Vancouver", "142.104"),  # U. Victoria
+    Location("Calgary", "America/Edmonton", "136.159"),  # U. Calgary
+    Location("Edmonton", "America/Edmonton", "129.128"),  # U. Alberta
+    Location("Winnipeg", "America/Winnipeg", "130.179"),  # U. Manitoba
+    Location("Halifax", "America/Halifax", "129.173"),  # Dalhousie
+)
+
+LOCATIONS: dict[str, tuple[Location, ...]] = {
+    "US": US_LOCATIONS,
+    "CA": CA_LOCATIONS,
+}
+
+# What the browser reports (BCP-47), as opposed to the Faker locale a persona is
+# minted from (persona.py). Both derive from the market; neither format fits both.
+BROWSER_LOCALES: dict[str, str] = {
+    "US": "en-US",
+    "CA": "en-CA",
+}
+
+# Abstract device keys, weighted like North American e-commerce traffic (weights
+# need not sum to 1, cf. JOURNEYS in customer_journey/transitions.py). Shared
+# across markets: the US and Canadian device mixes are close enough that a split
+# would be invented precision.
 DEVICE_POOL: dict[str, float] = {
     "iphone": 0.26,
     "iphone_large": 0.07,
@@ -87,17 +128,28 @@ def _mint_ip(prefix: str, rng: random.Random, taken: set[str] | None) -> str:
     return ip
 
 
-def mint_envelope(rng: random.Random, taken: set[str] | None = None) -> VisitorEnvelope:
+def mint_envelope(
+    rng: random.Random, taken: set[str] | None = None, *, country: str = "US"
+) -> VisitorEnvelope:
     """One visitor's envelope: weighted device, uniform location, distinct host IP.
 
     Pass the set of already-issued IPs as `taken` to guarantee a brand-new
-    address (the guest flow); omit it for a standalone draw.
+    address (the guest flow); omit it for a standalone draw. `country` selects
+    the location catalogue — an unknown one is a wiring mistake, not a fallback.
     """
+    try:
+        locations = LOCATIONS[country]
+    except KeyError:
+        raise ValueError(
+            f"no locations for market {country!r}; known: {sorted(LOCATIONS)}"
+        ) from None
+
     device = rng.choices(list(DEVICE_POOL), weights=list(DEVICE_POOL.values()), k=1)[0]
-    location = rng.choice(US_LOCATIONS)
+    location = rng.choice(locations)
     return VisitorEnvelope(
         device=device,
         ip=_mint_ip(location.prefix, rng, taken),
         city=location.city,
         timezone=location.timezone,
+        locale=BROWSER_LOCALES[country],
     )

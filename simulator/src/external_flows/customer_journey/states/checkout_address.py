@@ -14,9 +14,11 @@ FIELD_STATE_SELECT = "#field-id_state"
 FIELD_COUNTRY_SELECT = "#field-id_country"
 SUBMIT = "button[data-link-action='save-address'], button[name='confirm-addresses']"
 
-# PrestaShop country dropdown ids observed in the address form.
+# PrestaShop country dropdown ids observed in the address form. These are the
+# install's fixed `ps_country.id_country` values, not per-shop settings.
 PRESTASHOP_COUNTRY_IDS = {
     "US": "21",
+    "CA": "4",
     "FR": "8",
     "GB": "17",
 }

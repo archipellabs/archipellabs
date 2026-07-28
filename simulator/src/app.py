@@ -57,7 +57,7 @@ def build_app() -> App:
         arrivals_service,
         enabled=settings.arrivals_enabled,
         config={
-            "country": settings.country,
+            "market_mix": settings.market_mix,
             "tick_seconds": settings.tick_seconds,
             "max_arrivals_per_tick": settings.max_arrivals_per_tick,
             "random_seed": settings.random_seed,

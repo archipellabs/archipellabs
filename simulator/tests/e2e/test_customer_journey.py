@@ -37,13 +37,21 @@ def _completed_state_keys(result: dict) -> set[str]:
     return {e["state"] for e in result["events"] if e["event"] == "state_completed"}
 
 
-async def test_guest_checkout_creates_order():
+@pytest.mark.parametrize("country", ["US", "CA"])
+async def test_guest_checkout_creates_order(country):
+    """Once per market the shop sells to.
+
+    Every market brings its own address validation (zip format, province list)
+    and its own carrier coverage, and a market the shop cannot actually serve
+    fails silently — the form simply never advances, which is indistinguishable
+    from a customer changing their mind.
+    """
     async with browser_session(headless=HEADLESS) as ctx:
         result = await run_customer_journey(
             ctx,
             BASE_URL,
             journey="guest_checkout",
-            guest=generate_customer_profile(country="US"),
+            guest=generate_customer_profile(country=country),
             fast=FAST,
         )
 

@@ -42,7 +42,7 @@ instead of replaying an hour of traffic at once when capacity returns."""
 async def arrivals_lifespan(config: Config) -> AsyncIterator[Resources]:
     rng = random.Random(config.get("random_seed"))
     rate = RateConfig(**config.get("rate", {}))
-    identities = IdentityPool(rng=rng, country=config.get("country", "US"))
+    identities = IdentityPool(rng=rng, markets=config.get("market_mix"))
     yield {"rate": rate, "identities": identities, "rng": rng}
 
 
