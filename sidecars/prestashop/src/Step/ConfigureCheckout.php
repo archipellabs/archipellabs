@@ -8,23 +8,19 @@ use Archipel\Provisioning\Kernel\BaseStep;
 use Archipel\Provisioning\Kernel\Context;
 
 /**
- * Checkout policy. Keeps a single, properly named carrier — the only demo
- * carrier that already covers the North-America zone (id_reference 2, shipped as
- * "My carrier") — renamed and set as default, with every other carrier
- * disabled. Restricts payment to bank wire only (disables the other payment
- * modules) and fills in its placeholder bank-account details so they show on the
- * payment step and order-confirmation page. Idempotent: re-running re-applies the
- * same name/state and is a no-op once everything is already in place.
+ * Payment policy. Restricts payment to bank wire only (disables the other
+ * payment modules) and fills in its placeholder bank-account details so they
+ * show on the payment step and order-confirmation page. Idempotent: re-running
+ * re-applies the same state and is a no-op once everything is in place.
+ *
+ * Carriers are NOT configured here. They used to be — this step renamed demo
+ * carrier id_reference 2 and disabled every other one — but shipping geography
+ * and carriers now belong to ConfigureNorthAmerica, which owns zones, coverage
+ * and pricing together. Two steps configuring carriers meant the later one
+ * disabling what the earlier one had just created.
  */
 final class ConfigureCheckout extends BaseStep
 {
-    private const CARRIER_REFERENCE = 2;
-    private const CARRIER_NAME = 'TimberWorks Delivery';
-    /** Multilang "delivery time" text, keyed by language iso. */
-    private const CARRIER_DELAY = [
-        'en' => 'Delivered in 3-5 business days',
-        'fr' => 'Livraison en 3 à 5 jours ouvrés',
-    ];
     private const KEEP_PAYMENT_MODULE = 'ps_wirepayment';
     private const DISABLE_PAYMENT_MODULES = ['ps_checkpayment', 'ps_cashondelivery', 'ps_checkout'];
 
@@ -45,13 +41,12 @@ final class ConfigureCheckout extends BaseStep
 
     public function description(): string
     {
-        return 'Checkout: single named carrier + bank-wire-only payment.';
+        return 'Checkout: bank-wire-only payment, with its details filled in.';
     }
 
     public function apply(Context $ctx): void
     {
         $ctx->prestashop->boot();
-        $this->configureCarrier($ctx);
         $this->restrictToBankWire($ctx);
         $this->configureBankWire($ctx);
     }
@@ -69,39 +64,6 @@ final class ConfigureCheckout extends BaseStep
         \Configuration::updateValue('BANK_WIRE_PAYMENT_INVITE', true);
 
         $ctx->log->info('Bank wire details configured (owner: ' . self::BANK_WIRE_OWNER . ')');
-    }
-
-    private function configureCarrier(Context $ctx): void
-    {
-        $carrier = \Carrier::getCarrierByReference(self::CARRIER_REFERENCE);
-        if (!\Validate::isLoadedObject($carrier)) {
-            $ctx->log->info('Carrier reference ' . self::CARRIER_REFERENCE . ' not found — skipping carrier setup');
-
-            return;
-        }
-
-        $carrier->name = self::CARRIER_NAME;
-        $carrier->delay = $ctx->localized(self::CARRIER_DELAY);
-        $carrier->active = true;
-        $carrier->save();
-        \Configuration::updateValue('PS_CARRIER_DEFAULT', (int) $carrier->id);
-        $ctx->log->info('Carrier "' . self::CARRIER_NAME . '" (id=' . (int) $carrier->id . ') set + default');
-
-        // Disable every other carrier so checkout offers this one only.
-        $disabled = 0;
-        $langId = (int) \Configuration::get('PS_LANG_DEFAULT');
-        foreach (\Carrier::getCarriers($langId) as $row) {
-            if ((int) $row['id_carrier'] === (int) $carrier->id) {
-                continue;
-            }
-            $other = new \Carrier((int) $row['id_carrier']);
-            if ($other->active) {
-                $other->active = false;
-                $other->save();
-                $disabled++;
-            }
-        }
-        $ctx->log->info("Disabled {$disabled} other carrier(s)");
     }
 
     private function restrictToBankWire(Context $ctx): void

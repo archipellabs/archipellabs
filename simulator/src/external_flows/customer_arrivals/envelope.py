@@ -47,25 +47,46 @@ class Location:
     # rather than a public whois — the two disagree, and only the former decides
     # what the analytics report.
     prefix: str
+    # State/province exactly as `ps_state.name` spells it: the checkout selects
+    # it from a dropdown by label, so a near-miss silently falls back.
+    region: str
+    # Real postcode prefix for the city (US 3-digit ZIP, Canadian FSA). The rest
+    # is minted per customer, so an address is plausible for the city it claims
+    # and still satisfies `ps_country.zip_code_format`.
+    postcode_prefix: str
 
 
 US_LOCATIONS: tuple[Location, ...] = (
-    Location("New York", "America/New_York", "128.59"),  # Columbia
-    Location("Boston", "America/New_York", "128.197"),  # Boston Univ.
-    Location("Philadelphia", "America/New_York", "130.91"),  # UPenn
-    Location("Atlanta", "America/New_York", "130.207"),  # Georgia Tech
-    Location("Miami", "America/New_York", "131.94"),  # FIU
-    Location("Columbus", "America/New_York", "128.146"),  # Ohio State
-    Location("East Lansing", "America/Detroit", "35.8"),  # Michigan State
-    Location("Chicago", "America/Chicago", "128.135"),  # U. Chicago
-    Location("Austin", "America/Chicago", "128.83"),  # UT Austin
-    Location("Minneapolis", "America/Chicago", "128.101"),  # U. Minnesota
-    Location("Boulder", "America/Denver", "128.138"),  # CU Boulder
-    Location("Salt Lake City", "America/Denver", "155.98"),  # U. Utah
-    Location("Tempe", "America/Phoenix", "129.219"),  # Arizona State
-    Location("Los Angeles", "America/Los_Angeles", "128.97"),  # UCLA
-    Location("Berkeley", "America/Los_Angeles", "128.32"),  # UC Berkeley
-    Location("Seattle", "America/Los_Angeles", "128.95"),  # U. Washington
+    Location("New York", "America/New_York", "128.59", "New York", "100"),  # Columbia
+    Location("Boston", "America/New_York", "128.197", "Massachusetts", "021"),  # BU
+    Location(
+        "Philadelphia", "America/New_York", "130.91", "Pennsylvania", "191"
+    ),  # UPenn
+    Location(
+        "Atlanta", "America/New_York", "130.207", "Georgia", "303"
+    ),  # Georgia Tech
+    Location("Miami", "America/New_York", "131.94", "Florida", "331"),  # FIU
+    Location("Columbus", "America/New_York", "128.146", "Ohio", "432"),  # Ohio State
+    Location(
+        "East Lansing", "America/Detroit", "35.8", "Michigan", "488"
+    ),  # Michigan St.
+    Location("Chicago", "America/Chicago", "128.135", "Illinois", "606"),  # U. Chicago
+    Location("Austin", "America/Chicago", "128.83", "Texas", "787"),  # UT Austin
+    Location(
+        "Minneapolis", "America/Chicago", "128.101", "Minnesota", "554"
+    ),  # U. Minn.
+    Location("Boulder", "America/Denver", "128.138", "Colorado", "803"),  # CU Boulder
+    Location("Salt Lake City", "America/Denver", "155.98", "Utah", "841"),  # U. Utah
+    Location("Tempe", "America/Phoenix", "129.219", "Arizona", "852"),  # Arizona State
+    Location(
+        "Los Angeles", "America/Los_Angeles", "128.97", "California", "900"
+    ),  # UCLA
+    Location(
+        "Berkeley", "America/Los_Angeles", "128.32", "California", "947"
+    ),  # UC Berkeley
+    Location(
+        "Seattle", "America/Los_Angeles", "128.95", "Washington", "981"
+    ),  # U. Wash.
 )
 
 # The mix of provinces roughly tracks population (Ontario heaviest, then Quebec,
@@ -73,18 +94,26 @@ US_LOCATIONS: tuple[Location, ...] = (
 # uniformly, so the *composition* of the tuple is what shapes the geography.
 # No two entries share a city label: callers resolve a location by city.
 CA_LOCATIONS: tuple[Location, ...] = (
-    Location("Toronto", "America/Toronto", "128.100"),  # U. Toronto
-    Location("Ottawa", "America/Toronto", "137.122"),  # U. Ottawa
-    Location("Waterloo", "America/Toronto", "129.97"),  # U. Waterloo
-    Location("Hamilton", "America/Toronto", "130.113"),  # McMaster
-    Location("Montreal", "America/Toronto", "132.206"),  # McGill
-    Location("Quebec City", "America/Toronto", "132.203"),  # U. Laval
-    Location("Vancouver", "America/Vancouver", "137.82"),  # UBC
-    Location("Victoria", "America/Vancouver", "142.104"),  # U. Victoria
-    Location("Calgary", "America/Edmonton", "136.159"),  # U. Calgary
-    Location("Edmonton", "America/Edmonton", "129.128"),  # U. Alberta
-    Location("Winnipeg", "America/Winnipeg", "130.179"),  # U. Manitoba
-    Location("Halifax", "America/Halifax", "129.173"),  # Dalhousie
+    Location("Toronto", "America/Toronto", "128.100", "Ontario", "M5V"),  # U. Toronto
+    Location("Ottawa", "America/Toronto", "137.122", "Ontario", "K1P"),  # U. Ottawa
+    Location("Waterloo", "America/Toronto", "129.97", "Ontario", "N2L"),  # U. Waterloo
+    Location("Hamilton", "America/Toronto", "130.113", "Ontario", "L8S"),  # McMaster
+    Location("Montreal", "America/Toronto", "132.206", "Quebec", "H3A"),  # McGill
+    Location("Quebec City", "America/Toronto", "132.203", "Quebec", "G1R"),  # U. Laval
+    Location(
+        "Vancouver", "America/Vancouver", "137.82", "British Columbia", "V6B"
+    ),  # UBC
+    Location(
+        "Victoria", "America/Vancouver", "142.104", "British Columbia", "V8W"
+    ),  # UVic
+    Location("Calgary", "America/Edmonton", "136.159", "Alberta", "T2P"),  # U. Calgary
+    Location("Edmonton", "America/Edmonton", "129.128", "Alberta", "T5J"),  # U. Alberta
+    Location(
+        "Winnipeg", "America/Winnipeg", "130.179", "Manitoba", "R3C"
+    ),  # U. Manitoba
+    Location(
+        "Halifax", "America/Halifax", "129.173", "Nova Scotia", "B3H"
+    ),  # Dalhousie
 )
 
 LOCATIONS: dict[str, tuple[Location, ...]] = {
@@ -128,14 +157,11 @@ def _mint_ip(prefix: str, rng: random.Random, taken: set[str] | None) -> str:
     return ip
 
 
-def mint_envelope(
-    rng: random.Random, taken: set[str] | None = None, *, country: str = "US"
-) -> VisitorEnvelope:
-    """One visitor's envelope: weighted device, uniform location, distinct host IP.
+def pick_location(rng: random.Random, country: str) -> Location:
+    """A uniform draw from a market's catalogue.
 
-    Pass the set of already-issued IPs as `taken` to guarantee a brand-new
-    address (the guest flow); omit it for a standalone draw. `country` selects
-    the location catalogue — an unknown one is a wiring mistake, not a fallback.
+    An unknown market is a wiring mistake, not a fallback — silently defaulting
+    to the US would put a whole market's traffic in the wrong hemisphere.
     """
     try:
         locations = LOCATIONS[country]
@@ -143,13 +169,30 @@ def mint_envelope(
         raise ValueError(
             f"no locations for market {country!r}; known: {sorted(LOCATIONS)}"
         ) from None
+    return rng.choice(locations)
 
+
+def mint_envelope(
+    rng: random.Random,
+    taken: set[str] | None = None,
+    *,
+    location: Location,
+    locale: str,
+) -> VisitorEnvelope:
+    """One visitor's envelope: weighted device, distinct host IP in `location`.
+
+    `location` is where the visitor physically is right now, which is not always
+    where they live — the caller decides (see IdentityPool). `locale` follows the
+    person, not the place: a Canadian browsing from Chicago still reports en-CA.
+
+    Pass the set of already-issued IPs as `taken` to guarantee a brand-new
+    address (the guest flow); omit it for a standalone draw.
+    """
     device = rng.choices(list(DEVICE_POOL), weights=list(DEVICE_POOL.values()), k=1)[0]
-    location = rng.choice(locations)
     return VisitorEnvelope(
         device=device,
         ip=_mint_ip(location.prefix, rng, taken),
         city=location.city,
         timezone=location.timezone,
-        locale=BROWSER_LOCALES[country],
+        locale=locale,
     )

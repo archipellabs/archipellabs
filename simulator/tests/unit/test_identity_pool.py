@@ -42,16 +42,54 @@ def test_a_single_market_draws_only_that_market():
     assert {pool.pick().profile.country for _ in range(200)} == {"CA"}
 
 
-def test_the_visitor_arrives_from_inside_their_own_market():
-    """A Canadian buyer on a US address would put the tracker's geography and the
-    order's billing country permanently at odds — an artefact that looks exactly
-    like a real cross-border signal."""
+def test_most_visitors_browse_from_the_town_they_live_in():
+    """Deliberately not all of them. Travellers, VPNs and gift shipping mean IP
+    geography and billing address disagree for a slice of any real population; if
+    they matched perfectly the two signals would be interchangeable, and analysis
+    resting on one would look sound for reasons true only in the simulation."""
     pool = IdentityPool(rng=random.Random(5))
 
-    for _ in range(300):
-        identity = pool.pick()
-        home = {loc.city for loc in LOCATIONS[identity.profile.country]}
-        assert identity.visitor.city in home
+    identities = [pool.pick() for _ in range(3000)]
+    at_home = sum(1 for i in identities if i.visitor.city == i.profile.city)
+
+    assert 0.76 < at_home / len(identities) < 0.84  # AT_HOME_PROBABILITY = 0.80
+
+
+def test_visitors_who_are_away_are_usually_still_in_their_own_country():
+    """Leaving the country is the rarer trip, so cross-border traffic stays a
+    thin slice instead of distorting each market's geography."""
+    pool = IdentityPool(rng=random.Random(11))
+
+    away = [
+        i
+        for i in (pool.pick() for _ in range(4000))
+        if i.visitor.city != i.profile.city
+    ]
+    domestic = sum(
+        1
+        for i in away
+        if i.visitor.city in {loc.city for loc in LOCATIONS[i.profile.country]}
+    )
+
+    assert away, "nobody travelled; the away path never ran"
+    assert 0.74 < domestic / len(away) < 0.86  # DOMESTIC_WHEN_AWAY = 0.80
+
+
+def test_a_visitor_always_lands_in_a_real_place():
+    """Whether home or away, the envelope's city is one we have a /16 for — an
+    invented city would geolocate somewhere unrelated."""
+    pool = IdentityPool(rng=random.Random(5))
+    known = {loc.city for locations in LOCATIONS.values() for loc in locations}
+
+    assert {pool.pick().visitor.city for _ in range(500)} <= known
+
+
+def test_the_browser_locale_follows_the_customers_market():
+    """Not the market they are browsing from: a Canadian in Chicago is still a
+    Canadian, and the storefront should see en-CA."""
+    pool = IdentityPool(rng=random.Random(9), markets={"CA": 1})
+
+    assert {pool.pick().visitor.locale for _ in range(200)} == {"en-CA"}
 
 
 def test_an_unknown_market_is_rejected_at_construction():

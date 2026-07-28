@@ -15,12 +15,11 @@ FIELD_COUNTRY_SELECT = "#field-id_country"
 SUBMIT = "button[data-link-action='save-address'], button[name='confirm-addresses']"
 
 # PrestaShop country dropdown ids observed in the address form. These are the
-# install's fixed `ps_country.id_country` values, not per-shop settings.
+# install's fixed `ps_country.id_country` values, not per-shop settings. Only the
+# markets the shop actually sells to (see envelope.LOCATIONS) belong here.
 PRESTASHOP_COUNTRY_IDS = {
     "US": "21",
     "CA": "4",
-    "FR": "8",
-    "GB": "17",
 }
 
 
@@ -58,9 +57,6 @@ class CheckoutAddressState:
         # Some countries (US, CA…) require a state. The dropdown is rendered
         # asynchronously after the country select loads — wait for it explicitly.
         # If it never appears, the country has no state field and we skip.
-        # Skip 2–3-letter uppercase codes — those are US APO/FPO military regions
-        # ("AA", "AE", "AP") with no carrier coverage, which would silently
-        # break the shipping step.
         state_select = page.locator(FIELD_STATE_SELECT)
         state_visible = False
         try:
@@ -70,20 +66,27 @@ class CheckoutAddressState:
             pass
 
         if state_visible:
-            chosen_value: str | None = None
-            chosen_label: str | None = None
-            for option in await state_select.locator(
-                "option[value]:not([value=''])"
-            ).all():
-                label = (await option.inner_text()).strip()
-                if len(label) <= 3 and label.isupper():
-                    continue
-                chosen_value = await option.get_attribute("value")
-                chosen_label = label
-                break
-            if chosen_value is not None:
-                await state_select.first.select_option(value=chosen_value)
-                session.log.emit("checkout_state_selected", state=chosen_label)
+            options = [
+                (
+                    await option.get_attribute("value"),
+                    (await option.inner_text()).strip(),
+                )
+                for option in await state_select.locator(
+                    "option[value]:not([value=''])"
+                ).all()
+            ]
+
+            # The customer's own region, matched on the label the shop renders.
+            # Falling back to the first option would put every customer in one
+            # region, so a miss is worth a signal rather than a silent guess.
+            chosen = next((opt for opt in options if opt[1] == guest.state), None)
+            if chosen is None:
+                chosen = options[0] if options else None
+                session.log.emit("checkout_state_fallback", wanted=guest.state)
+
+            if chosen is not None:
+                await state_select.first.select_option(value=chosen[0])
+                session.log.emit("checkout_state_selected", state=chosen[1])
             else:
                 session.log.emit("checkout_state_unavailable")
 

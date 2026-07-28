@@ -34,6 +34,10 @@ class CustomerProfile(BaseModel):
     postcode: str
     phone: str
     country: str
+    # State/province, spelled as the storefront's dropdown spells it. Optional so
+    # events already on the stream keep validating; without it the checkout falls
+    # back to picking the first option, which puts every customer in one region.
+    state: str | None = None
 
 
 class VisitorEnvelope(BaseModel):

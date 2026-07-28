@@ -2,10 +2,10 @@
 
 Held by the customer-arrivals scheduler lifespan (POOL scope) so its seeded
 persona factories and issued-IP set persist across ticks. Every arrival is a
-brand-new visitor: a market drawn from the shop's mix, then a random profile from
-that market plus a fresh, guaranteed-unique envelope (device + IP + locality).
-Because each IP is distinct, each visit is a distinct visitor to the analytics
-tracker.
+brand-new visitor: a market drawn from the shop's mix, a home town inside it,
+then a profile that lives there and an envelope that says where they are
+browsing from. Because each IP is distinct, each visit is a distinct visitor to
+the analytics tracker.
 
 The market mix is the shop's knob — which countries it sells to and how traffic
 splits between them — so it is config, unlike the location catalogues and rate
@@ -22,12 +22,32 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from src.external_flows.contracts import CustomerProfile, VisitorEnvelope
-from src.external_flows.customer_arrivals.envelope import LOCATIONS, mint_envelope
+from src.external_flows.customer_arrivals.envelope import (
+    BROWSER_LOCALES,
+    LOCATIONS,
+    Location,
+    mint_envelope,
+    pick_location,
+)
 from src.external_flows.customer_arrivals.persona import PersonaFactory
 
 DEFAULT_MARKET_MIX: dict[str, float] = {"US": 0.75, "CA": 0.25}
 """Traffic split for a North America-scoped shop. Weights are relative, not
 percentages (cf. DEVICE_POOL), so they need not sum to 1."""
+
+AT_HOME_PROBABILITY = 0.80
+"""How often a visitor browses from the town they live in.
+
+Not 1.0 on purpose. Real traffic always carries people who are travelling, on a
+VPN, or shipping to someone else, so IP geography and billing address disagree
+for a slice of every population. Pinning them together would make the two
+signals interchangeable — and then any analysis built on one would look
+trustworthy for reasons that only hold in the simulation."""
+
+DOMESTIC_WHEN_AWAY = 0.80
+"""Of the visitors who are away, how many are still in their own country.
+Leaving the country is the rarer case, so cross-border traffic stays a thin
+slice rather than a distortion of the per-market geography."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +84,34 @@ class IdentityPool:
     def pick(self) -> Identity:
         """Mint the next arrival's identity: a new customer on a unique envelope."""
         country = self._rng.choices(self._markets, weights=self._weights, k=1)[0]
-        envelope = mint_envelope(self._rng, self._issued_ips, country=country)
+        home = pick_location(self._rng, country)
+        here = self._browsing_from(country, home)
+
+        envelope = mint_envelope(
+            self._rng,
+            self._issued_ips,
+            location=here,
+            locale=BROWSER_LOCALES[country],
+        )
         self._issued_ips.add(envelope.ip)
-        return Identity(profile=self._personas[country].make(), visitor=envelope)
+        return Identity(profile=self._personas[country].make(home), visitor=envelope)
+
+    def _browsing_from(self, country: str, home: Location) -> Location:
+        """Where this visitor physically is, usually but not always home.
+
+        The away pool spans every known market, not just the ones the shop sells
+        to: being somewhere is a fact about the person, not about the catalogue.
+        """
+        if self._rng.random() < AT_HOME_PROBABILITY:
+            return home
+
+        if self._rng.random() < DOMESTIC_WHEN_AWAY:
+            elsewhere = [loc for loc in LOCATIONS[country] if loc != home]
+        else:
+            elsewhere = [
+                loc
+                for market, locations in LOCATIONS.items()
+                if market != country
+                for loc in locations
+            ]
+        return self._rng.choice(elsewhere) if elsewhere else home
