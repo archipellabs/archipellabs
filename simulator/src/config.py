@@ -37,10 +37,15 @@ class Settings(BaseSettings):
     arrivals_enabled: bool = False  # off by default — enable to generate traffic
     catalog_enabled: bool = True
     stock_enabled: bool = True
+    payments_enabled: bool = True
     catalog_doctor_enabled: bool = True
 
     # stock refill flow: how often to top up tracked products (runtime duration)
     stock_check_interval: str = "5m"
+    # payment settlement: how often to accept the waiting bank wires. Nothing else
+    # ever moves an order out of "Awaiting bank wire payment", so without this the
+    # shop takes orders that are never paid.
+    payment_check_interval: str = "5m"
     # catalog doctor: how often to check for drift and reconcile (runtime duration)
     catalog_doctor_interval: str = "5m"
 

@@ -17,6 +17,7 @@ from src.external_flows.customer_arrivals.scheduler import service as arrivals_s
 from src.external_flows.customer_journey.pool import service as journey_service
 from src.infrastructure.db import run_migrations
 from src.internal_flows.catalog.service import service as catalog_service
+from src.internal_flows.payments.scheduler import service as payments_service
 from src.internal_flows.stock.scheduler import service as stock_service
 
 
@@ -50,6 +51,7 @@ def build_app() -> App:
     # that calls it; the doctor keeps its own flag, applied at registration.
     app.include(catalog_service, enabled=settings.catalog_enabled)
     app.include(stock_service, enabled=settings.stock_enabled)
+    app.include(payments_service, enabled=settings.payments_enabled)
 
     # Producer of customer.arrival: dispatches simulated arrivals on a timer. Off
     # by default (arrivals_enabled) so the app can run consumer-only.

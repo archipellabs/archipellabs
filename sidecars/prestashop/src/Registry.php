@@ -14,6 +14,7 @@ use Archipel\Provisioning\Step\ConfigureNorthAmerica;
 use Archipel\Provisioning\Step\ConfigureReassurance;
 use Archipel\Provisioning\Step\ConfigureWebservice;
 use Archipel\Provisioning\Step\CreateAdminApiClient;
+use Archipel\Provisioning\Step\DisableOutboundEmail;
 use Archipel\Provisioning\Step\InstallCustomModules;
 use Archipel\Provisioning\Step\InstallMatomo;
 use Archipel\Provisioning\Step\PlaceReverseProxyEnv;
@@ -38,6 +39,7 @@ final class Registry
             new ConfigureLanguages(),
             new ConfigureNorthAmerica(),
             new ConfigureCheckout(),
+            new DisableOutboundEmail(),
             new InstallCustomModules(),
             new InstallMatomo(),
             new ApplyTimberworksTheme(),

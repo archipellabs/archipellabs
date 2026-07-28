@@ -17,7 +17,12 @@ def test_disabled_flags_keep_services_out_of_the_process(monkeypatch):
     """`include(enabled=False)` is a wiring decision, not a runtime pause: a
     service left out is never constructed and its lifespan never runs, which is
     what keeps Chromium from launching when the journey is off."""
-    for flag in ("journey_enabled", "catalog_enabled", "stock_enabled"):
+    for flag in (
+        "journey_enabled",
+        "catalog_enabled",
+        "stock_enabled",
+        "payments_enabled",
+    ):
         monkeypatch.setattr(app_module.settings, flag, False)
     monkeypatch.setattr(app_module.settings, "arrivals_enabled", True)
 
