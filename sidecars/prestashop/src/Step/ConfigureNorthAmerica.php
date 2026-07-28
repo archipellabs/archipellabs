@@ -331,9 +331,27 @@ final class ConfigureNorthAmerica extends BaseStep
         }
 
         $this->removeCarriersExcept($ctx, $keep);
+        $this->forgetCarrierList();
 
         \Configuration::updateValue('PS_CARRIER_DEFAULT', $keep[0]);
         $ctx->log->info('Default carrier = ' . array_key_first(self::CARRIERS));
+    }
+
+    /**
+     * Drop PrestaShop's memoised carrier list.
+     *
+     * Carrier::getCarriers() caches per SQL hash in a static that lives for the
+     * whole process, and it does not invalidate when carriers change. Anything
+     * that reads the list after this step has rewritten it would otherwise get
+     * the carriers the install shipped with — including PrestaShop's own
+     * addCheckboxCarrierRestrictionsForModule(), which then grants the payment
+     * module to carriers that no longer exist and leaves checkout with no
+     * payment method. Only a from-scratch run shows this: on a re-run the
+     * carriers already exist when the list is first cached.
+     */
+    private function forgetCarrierList(): void
+    {
+        \Cache::clean('Carrier::getCarriers_*');
     }
 
     /**
@@ -344,6 +362,10 @@ final class ConfigureNorthAmerica extends BaseStep
      */
     private function liveCarriers(): array
     {
+        // Read through the cache, not from it: this step creates and removes
+        // carriers between calls, so a memoised list is wrong by construction.
+        $this->forgetCarrierList();
+
         $langId = (int) \Configuration::get('PS_LANG_DEFAULT');
         $rows = \Carrier::getCarriers($langId, false, false, false, null, \Carrier::ALL_CARRIERS);
 
