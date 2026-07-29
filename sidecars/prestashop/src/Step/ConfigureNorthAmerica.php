@@ -37,6 +37,13 @@ final class ConfigureNorthAmerica extends BaseStep
     private const DISABLE_CURRENCIES = ['GBP'];
     /** One shipping zone per country, so coverage can differ between them. */
     private const COUNTRY_ZONES = ['US' => 'United States', 'CA' => 'Canada'];
+    /**
+     * TimberWorks is a Dallas company, so its clock is Dallas. Matches the
+     * simulator's ARRIVAL_TIMEZONE, which is what shapes the daily traffic curve.
+     */
+    private const TIMEZONE = 'America/Chicago';
+    /** Drives address format and locale defaults; PrestaShop ships GB. */
+    private const LOCALE_COUNTRY = 'US';
     /** Flat shipping price, per zone, for every carrier. */
     private const SHIPPING_FLAT_RATE = 5.00;
     /** Widest sensible price range; one range per carrier keeps pricing flat. */
@@ -86,11 +93,33 @@ final class ConfigureNorthAmerica extends BaseStep
     public function apply(Context $ctx): void
     {
         $ctx->prestashop->boot();
+        $this->configureLocale($ctx);
         $this->configureCurrencies($ctx);
         $this->configureCountries($ctx);
         $this->configureZones($ctx);
         $this->configureCarriers($ctx);
         $this->configurePaymentRestrictions($ctx);
+    }
+
+    /**
+     * The company's own clock and country.
+     *
+     * Both shipped wrong: a fresh PrestaShop defaults to Europe/Paris and a
+     * locale country of GB, which is simply where the installer was run. So
+     * TimberWorks stamped every order in Paris time while its customers arrived
+     * on a Dallas business-hours curve (the simulator's ARRIVAL_TIMEZONE) — seven
+     * hours apart, which silently shifts any orders-per-hour chart against the
+     * traffic that produced it.
+     *
+     * The rule: the company's own timestamps are Dallas. UTC only where a system
+     * mandates it — Matomo's raw visit log and Loki's index store UTC and cannot
+     * do otherwise.
+     */
+    private function configureLocale(Context $ctx): void
+    {
+        \Configuration::updateValue('PS_TIMEZONE', self::TIMEZONE);
+        \Configuration::updateValue('PS_LOCALE_COUNTRY', self::LOCALE_COUNTRY);
+        $ctx->log->info('Timezone = ' . self::TIMEZONE . ', locale country = ' . self::LOCALE_COUNTRY);
     }
 
     private function configureCurrencies(Context $ctx): void

@@ -25,9 +25,9 @@ from src.internal_flows.catalog.client import json_client
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FEED_DIR = REPO_ROOT / "sidecars" / "erpfile" / "data"
 
-# The integration layer polls the feed every 3s; this is that plus room for the
+# The integration layer polls the feed every 30s; this is that plus room for the
 # reconcile itself. Generous on purpose — a flaky scenario teaches nothing.
-RECONCILE_TIMEOUT_S = 90.0
+RECONCILE_TIMEOUT_S = 150.0
 
 
 @pytest.fixture
@@ -152,12 +152,9 @@ async def until_serving(
     fixed interval would be either flaky or slow.
 
     The *whole set* matters, and waiting on one zone would be quietly wrong. The
-    route rebuilds pricing by deleting every delivery row and recreating the ones
-    the feed still lists, so for a moment mid-reconcile a carrier serves nothing
-    at all. A wait for "Canada is gone" can return inside that window — where the
-    US looks withdrawn too, and the very next assertion fails for a reason that
-    has nothing to do with the incident. An exact set can only match once the
-    rebuild has finished.
+    route upserts each row and prunes the rest in a later pass, so a wait for
+    "Canada is gone" can return before the prune has finished and the shop has
+    settled. An exact set can only match once the whole reconcile is done.
     """
     deadline = time.monotonic() + timeout
     while True:

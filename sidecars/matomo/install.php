@@ -27,7 +27,9 @@ use Piwik\Application\Environment;
 use Piwik\Plugin\Manager as PluginManager;
 use Piwik\Plugins\SitesManager\API as SitesManagerApi;
 use Piwik\Plugins\UserCountry\LocationProvider;
+use Piwik\Date;
 use Piwik\Plugins\UsersManager\API as UsersManagerApi;
+use Piwik\Plugins\UsersManager\Model as UsersManagerModel;
 
 const ROOT = '/var/www/html';
 const PREFIX = 'matomo_';
@@ -117,6 +119,28 @@ $adminPass = env('MATOMO_ADMIN_PASSWORD', 'changeme_demo');
 $adminEmail = env('MATOMO_ADMIN_EMAIL', 'admin@timberworks.test');
 $siteName = env('MATOMO_SITE_NAME', 'TimberWorks');
 $siteUrl = env('MATOMO_SITE_URL', 'https://localhost/');
+// TimberWorks is a Dallas company, so its reports read on a Dallas clock — the
+// same one the shop stamps orders with (ConfigureNorthAmerica::TIMEZONE) and the
+// same one the simulator's arrival curve follows. Matomo defaults to UTC, which
+// put its reports seven hours away from the shop's.
+//
+// This is the REPORTING timezone only. matomo_log_visit stores UTC and always
+// will; that is the "UTC where it is mandatory" half of the rule.
+$siteTimezone = env('MATOMO_SITE_TIMEZONE', 'America/Chicago');
+$siteCurrency = env('MATOMO_SITE_CURRENCY', 'USD');
+
+// The analyst account an agent investigates with. VIEW access only: it can read
+// reports and cannot change a setting, add a site or see another user. That is a
+// credential boundary enforced by Matomo, not a line in a prompt.
+//
+// The token is taken from the environment rather than generated, so it is stable
+// across rebuilds and configurable like WEBSERVICE_API_KEY. Matomo only ever
+// stores a salted hash of it, so it can be re-derived but never read back — which
+// is exactly why generating one here would mean persisting it somewhere else.
+$agentLogin = env('MATOMO_AGENT_LOGIN', 'agent');
+$agentPassword = env('MATOMO_AGENT_PASSWORD', '');
+$agentEmail = env('MATOMO_AGENT_EMAIL', 'agent@timberworks.test');
+$agentToken = env('MATOMO_AGENT_TOKEN', '');
 
 // 1. Wait for the database to accept connections (no healthcheck on matomodb).
 // Since PHP 8.1 mysqli THROWS on a refused connection instead of returning false,
@@ -196,7 +220,9 @@ if (!$installed) {
 // 5. Install plugins, create the super user + the Ecommerce site (as superuser).
 try {
     Access::doAsSuperUser(function () use (
-        $adminLogin, $adminPass, $adminEmail, $siteName, $siteUrl
+        $adminLogin, $adminPass, $adminEmail, $siteName, $siteUrl,
+        $siteTimezone, $siteCurrency,
+        $agentLogin, $agentPassword, $agentEmail, $agentToken
     ) {
         PluginManager::getInstance()->installLoadedPlugins(); // idempotent
 
@@ -215,10 +241,30 @@ try {
 
         $siteCount = (int) Db::fetchOne('SELECT COUNT(*) FROM ' . Common::prefixTable('site'));
         if ($siteCount === 0) {
-            $idSite = SitesManagerApi::getInstance()->addSite($siteName, [$siteUrl], 1); // 3rd arg = ecommerce
+            $idSite = SitesManagerApi::getInstance()->addSite(
+                siteName: $siteName,
+                urls: [$siteUrl],
+                ecommerce: 1,
+                timezone: $siteTimezone,
+                currency: $siteCurrency,
+            );
             say("created Ecommerce site '{$siteName}' -> idSite {$idSite}");
         } else {
-            say("site(s) already present ({$siteCount}) — leaving as is");
+            say("site(s) already present ({$siteCount})");
+        }
+
+        // Idempotent, and it matters on an existing install: the site was created
+        // before this ran and carries Matomo's UTC default.
+        foreach (SitesManagerApi::getInstance()->getAllSites() as $site) {
+            if ($site['timezone'] === $siteTimezone && $site['currency'] === $siteCurrency) {
+                continue;
+            }
+            SitesManagerApi::getInstance()->updateSite(
+                idSite: (int) $site['idsite'],
+                timezone: $siteTimezone,
+                currency: $siteCurrency,
+            );
+            say("site {$site['idsite']}: timezone -> {$siteTimezone}, currency -> {$siteCurrency}");
         }
     });
 } catch (\Throwable $e) {
@@ -321,16 +367,6 @@ passthru(PHP_BINARY . ' ' . escapeshellarg(ROOT . '/console') . ' core:update --
 if ($updateExit !== 0) {
     fwrite(STDERR, "[matomo-sidecar] core:update failed (exit {$updateExit})\n");
     exit($updateExit);
-}
-
-// The sidecar wrote the whole tree as root (app copy, config.ini.php, GeoIP DB).
-// On a Linux host the Apache user (www-data) then can't create its tmp/cache dirs
-// and every request 500s — so hand the tree to www-data now. Docker Desktop remaps
-// bind-mount ownership, so a local run never needs this; it's a no-op there.
-say('setting web-root ownership to www-data...');
-exec('chown -R www-data:www-data ' . escapeshellarg(ROOT), $chownOut, $chownExit);
-if ($chownExit !== 0) {
-    fwrite(STDERR, '[matomo-sidecar] WARNING: chown failed: ' . implode(' ', $chownOut) . "\n");
 }
 
 say('done.');

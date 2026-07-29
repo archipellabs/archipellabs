@@ -188,9 +188,12 @@ Four consumer options carry more weight than they look:
   to move; a parse failure is a failed exchange, and error handling belongs in
   the route rather than in the filesystem.
 
-`delay=3000` is a demo affordance and worth naming as one: a real supplier feed
-is a nightly batch. Three seconds exists so an edit made on stage shows up while
-someone is still looking at it.
+`delay=30000` is a demo affordance and worth naming as one: a real supplier feed
+is a nightly batch. Thirty seconds exists so an edit made on stage shows up while
+someone is still looking at it — and it was three seconds until the polling cost
+became visible. The image is `linux/amd64` only, so on an arm64 host the whole
+JVM runs emulated; at a three-second poll that was 70% of a core, continuously,
+competing with everything else on the machine.
 
 ## Which PrestaShop API these routes use, and why
 

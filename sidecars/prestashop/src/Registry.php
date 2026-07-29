@@ -13,6 +13,7 @@ use Archipel\Provisioning\Step\ConfigureLanguages;
 use Archipel\Provisioning\Step\ConfigureNorthAmerica;
 use Archipel\Provisioning\Step\ConfigureReassurance;
 use Archipel\Provisioning\Step\ConfigureWebservice;
+use Archipel\Provisioning\Step\CreateAgentApiKey;
 use Archipel\Provisioning\Step\CreateAdminApiClient;
 use Archipel\Provisioning\Step\DisableOutboundEmail;
 use Archipel\Provisioning\Step\InstallCustomModules;
@@ -35,6 +36,7 @@ final class Registry
         return [
             new PlaceReverseProxyEnv(),
             new ConfigureWebservice(),
+            new CreateAgentApiKey(),
             new CreateAdminApiClient(),
             new ConfigureLanguages(),
             new ConfigureNorthAmerica(),

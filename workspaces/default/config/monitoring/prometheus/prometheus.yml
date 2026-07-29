@@ -1,0 +1,35 @@
+# Prometheus — metrics for the company's systems.
+#
+# Its job in this lab is to be GREEN. The reference incident withdraws a market
+# without erroring, so every panel here stays healthy while revenue falls; that
+# contrast is the demo (doc/agent-org-lab.md §5). It is also honest noise: an
+# agent has to work out that the infrastructure is fine and the problem is a
+# business one, which is a real competence rather than one designed away.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # The integration layer reporting on itself. The sharpest metric in the stack:
+  # `camel_exchanges_failed_total{routeId="carriers-prune"}` stays at zero while
+  # that very route deletes Canada's shipping — because the route did exactly
+  # what it was told. Enabled by `--observe` on the camel container.
+  - job_name: camel
+    metrics_path: /observe/metrics
+    static_configs:
+      - targets: ["camel:8080"]
+
+  # Per-container CPU, memory, network and restarts for everything else, with no
+  # per-service exporters to install.
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+    metric_relabel_configs:
+      # Same allowlist as the logs (config/monitoring/alloy/config.alloy), for
+      # the same reason: the agent must not observe the instrument.
+      - source_labels: [name]
+        regex: "prestashop|prestashopdb|camel|erpfile|gateway|matomo|matomodb|matomo-cron"
+        action: keep
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

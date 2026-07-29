@@ -1,0 +1,41 @@
+# Loki — the log store, in its smallest useful shape.
+#
+# auth_enabled: false, and deliberately so. Loki is multi-tenant (X-Scope-OrgID),
+# and an earlier design used two tenants to keep the simulator's logs away from
+# the agent. That is gone: nothing out-of-universe is COLLECTED (see alloy), and
+# "never ingested" is a harder boundary than "ingested into a tenant the token
+# does not cover" — there is no header left to misconfigure.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  # Loki is chatty at info; this stack's logs are the subject, not the runtime's.
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-04-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # The feed can be edited and replayed repeatedly while demoing, so timestamps
+  # are not always moving forward.
+  reject_old_samples: false
+  volume_enabled: true

@@ -1,0 +1,148 @@
+# Monitoring — how the company sees itself, and the only evidence the agent gets.
+#
+# Named for the role, like the rest (`tracking` is Matomo, `erp` is a file drop).
+#
+# ── Company systems only ────────────────────────────────────────────────────
+#
+# Nothing here observes the SIMULATOR, the portal, or the simulator's database.
+# The simulator is not part of TimberWorks — it is the instrument that produces
+# the symptom, and it knows each synthetic customer's intent. Feeding that to an
+# agent investigating the incident is handing over the answer key, so the boundary
+# is enforced by never collecting it: an allowlist in the Alloy config for logs,
+# the same allowlist in the Prometheus config for metrics. See
+# doc/agent-org-lab.md §4.
+#
+# ── Named volumes, which also solved an ownership problem ───────────────────
+#
+# Loki, Prometheus and Grafana each start as a fixed non-root uid (10001, 65534,
+# 472) and — unlike the database images here — never chown their data directory.
+# On a bind mount that meant a root-created directory they could not write, so an
+# init container had to chown all three before they started.
+#
+# A named volume is seeded from the image, ownership included, so that whole
+# problem and the container that fixed it are gone.
+#
+# No top-level `networks:` — the docker-compose.yaml entrypoint owns and creates
+# the shared network; these services attach to it via the include.
+services:
+
+  # The log store. Single tenant: since nothing out-of-universe is ever ingested,
+  # there is no X-Scope-OrgID to set in Alloy, in Grafana, or in the agent's tool.
+  loki:
+    container_name: loki
+    image: grafana/loki:3.3.2
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./config/monitoring/loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki:/loki
+    networks:
+      - archipellabs_default_net
+
+  # The collector. Reads container logs off the Docker socket and forwards the
+  # allowlisted ones to Loki. Socket is mounted READ-ONLY: it only ever needs to
+  # list containers and follow their logs.
+  alloy:
+    container_name: alloy
+    image: grafana/alloy:v1.5.1
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./config/monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - archipellabs_default_net
+
+  # Metrics. Retention is short by design — this exists to show a healthy present
+  # next to falling revenue, not to hold history.
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=24h
+      - --log.level=warn
+    volumes:
+      - ./config/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+    networks:
+      - archipellabs_default_net
+
+  # Per-container CPU, memory, network and restarts for the whole stack, with no
+  # per-service exporters to install and no application changes. This is what
+  # makes "the infrastructure is fine" a wall of green graphs rather than a claim.
+  cadvisor:
+    container_name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    # cAdvisor reads cgroups and the container runtime's state directly, which is
+    # what privileged buys here. It is read-only on every mount below.
+    privileged: true
+    command:
+      # Quiet, and only the metrics actually wanted: cAdvisor defaults to a very
+      # wide set and logs a warning per unavailable subsystem on Docker Desktop.
+      - --logtostderr=true
+      - --v=0
+      - --docker_only=true
+      - --disable_metrics=percpu,sched,tcp,udp,advtcp,process,hugetlb,referenced_memory,cpu_topology,resctrl
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - archipellabs_default_net
+
+  # The dashboards. Datasources and dashboards are provisioned from files under
+  # config/monitoring/grafana — reviewed in a pull request and mounted read-only.
+  # The container runs the config; it does not own it.
+  #
+  # Grafana is the HUMAN's window. The agent never opens it — it queries Loki and
+  # Prometheus through typed tools (§8), which is also why Grafana's per-datasource
+  # permissions being Enterprise-only does not matter here.
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    # Published directly rather than proxied behind the gateway, like the portal
+    # on 8443. A subpath needs Grafana's root_url and serve_from_sub_path to agree
+    # with an nginx location, and nginx additionally caches the upstream's IP at
+    # config load — so recreating Grafana (which happens on every dashboard change)
+    # 502s until the gateway is reloaded. A bound port has none of that.
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./config/monitoring/default.env
+      - path: ./config/monitoring/.env
+        required: false
+    volumes:
+      - ./config/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana:/var/lib/grafana
+    depends_on:
+      - loki
+      - prometheus
+    networks:
+      - archipellabs_default_net
+
+# Named volumes, not bind mounts. The application directories are hundreds of
+# megabytes of vendor code written once by the image and never edited by hand;
+# through a macOS bind mount that copy took FOUR MINUTES on every cold start,
+# against a 51-second install. Config and master data stay bind-mounted above,
+# because those are the files you actually open.
+#
+# `name:` is set explicitly so the volume is called exactly this and not
+# <project>_<key> — one prefix for the whole stack means `docker volume ls
+# --filter name=archipellabs_default_` finds all of them and nothing else.
+volumes:
+  loki:
+    name: archipellabs_default_loki
+  prometheus:
+    name: archipellabs_default_prometheus
+  grafana:
+    name: archipellabs_default_grafana

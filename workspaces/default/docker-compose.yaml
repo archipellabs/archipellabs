@@ -25,6 +25,10 @@ include:
   # The ERP — system of record for master data. Currently a file drop on SFTP;
   # the name is the role, not the implementation (cf. `tracking` = Matomo).
   - path: docker-compose-erp.yaml
+  # Monitoring — logs and metrics for the COMPANY's systems only. Deliberately
+  # blind to the simulator, which is the instrument rather than part of the
+  # company (see the file's header, and doc/agent-org-lab.md §4).
+  - path: docker-compose-monitoring.yaml
 
 services:
   # Shared reverse-proxy / TLS gateway. It fronts BOTH included stacks — the

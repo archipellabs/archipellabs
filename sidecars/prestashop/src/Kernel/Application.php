@@ -24,7 +24,12 @@ final class Application
     {
         $config = new Config();
         $log = new Logger();
-        $prestashop = new PrestaShop($config->psRootDir(), $config->installFolder(), $log);
+        $prestashop = new PrestaShop(
+            $config->psRootDir(),
+            $config->installFolder(),
+            $log,
+            $config->shopInternalHost(),
+        );
         $console = new Console($config->psRootDir(), $log);
         $ctx = new Context($config, $log, $prestashop, $console);
         $runner = new StepRunner($log);

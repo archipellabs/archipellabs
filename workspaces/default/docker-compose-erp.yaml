@@ -41,8 +41,16 @@ services:
   # and chrooted to /home/<user>, so the directory layout IS the permission model.
   #
   #   feeds — the integration's account: reads data/, writes out/.
+  #   agent — an investigator's account: reads data/, and nothing else.
   #
-  # A second, read-only account for agents arrives with the access-gradient work.
+  # `agent` is how an employee looks at the company's master data — the same way
+  # they would in a real shop, by connecting to the drop and opening the file. It
+  # sees the feed AS IT IS NOW, not what changed: there is no history here and no
+  # repository access, so "Canada is missing from carriers.csv" has to be noticed
+  # rather than read off a diff.
+  #
+  # OpenSSH chroots each user to /home/<user>, so the two accounts cannot see each
+  # other's directories and `agent` has no route to out/.
   erpfile:
     container_name: erpfile
     image: atmoz/sftp:alpine
@@ -50,13 +58,28 @@ services:
     # uid 1001 rather than the image default 1000: other images in this stack
     # already run as 1000, and matching uids across unrelated services is how
     # bind-mount ownership bugs start.
-    command: ["feeds:feeds:1001:1001:out"]
+    command: ["feeds:feeds:1001:1001:out", "agent:agent:1002:1002"]
     # data/ is the repository, read-only — the integration must not be able to
     # rewrite the company's master data as a side effect of reading it.
     # Mounted at subdirectories rather than at /home/feeds, because OpenSSH
     # refuses to chroot into a directory it does not own.
     volumes:
       - ../../sidecars/erpfile/data:/home/feeds/data:ro
-      - ./volumes/erpfile/out:/home/feeds/out
+      - erpfile_out:/home/feeds/out
+      # Same files, mounted read-only into the agent's chroot.
+      - ../../sidecars/erpfile/data:/home/agent/data:ro
     networks:
       - archipellabs_default_net
+
+# Named volumes, not bind mounts. The application directories are hundreds of
+# megabytes of vendor code written once by the image and never edited by hand;
+# through a macOS bind mount that copy took FOUR MINUTES on every cold start,
+# against a 51-second install. Config and master data stay bind-mounted above,
+# because those are the files you actually open.
+#
+# `name:` is set explicitly so the volume is called exactly this and not
+# <project>_<key> — one prefix for the whole stack means `docker volume ls
+# --filter name=archipellabs_default_` finds all of them and nothing else.
+volumes:
+  erpfile_out:
+    name: archipellabs_default_erpfile_out

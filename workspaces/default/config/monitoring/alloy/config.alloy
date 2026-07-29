@@ -1,0 +1,57 @@
+// Alloy — collects container logs and ships them to Loki.
+//
+// THIS FILE IS THE SECURITY BOUNDARY. The agent investigates from these logs, so
+// what is collected here is exactly what it can see (doc/agent-org-lab.md §4).
+//
+// The rule is DEFAULT-DENY: an explicit allowlist of the company's own systems,
+// everything else dropped. That matters for one container in particular — the
+// simulator IS the customers, and it emits a JSON record per journey step, so its
+// logs are not evidence but the answer key. It runs on the host today rather than
+// in Docker, so it is invisible here by accident; this allowlist is what makes it
+// stay invisible on the day it gets containerised.
+
+// Alloy logs a line per component and per discovered target at info, which on a
+// stack this size buries everything else. Note this is a CONFIG BLOCK: there is
+// no --log.level flag, and passing one makes Alloy exit immediately — which looks
+// exactly like a quiet collector until you notice Loki has stopped receiving.
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+discovery.relabel "company" {
+  targets = discovery.docker.containers.targets
+
+  // Docker reports names as "/prestashop"; strip the slash so the label reads
+  // like the compose service.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "service"
+  }
+
+  // The allowlist. Adding a container to the stack does NOT add it here.
+  rule {
+    source_labels = ["service"]
+    regex         = "prestashop|prestashopdb|camel|erpfile|gateway|matomo|matomodb|matomo-cron"
+    action        = "keep"
+  }
+}
+
+loki.source.docker "company" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.company.output
+  labels     = {job = "company"}
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

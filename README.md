@@ -41,6 +41,9 @@ workspaces/default/               the local demo stack
   docker-compose-ecommerce.yaml   storefront: PrestaShop, MySQL, Redis, provisioning sidecar
   docker-compose-tracking.yaml    Matomo web-analytics stack + its install sidecar
   docker-compose-simulator.yaml   simulator stack: activity DB (Postgres) + portal; the simulator app is deferred — run locally
+  docker-compose-integration.yaml the ESB: Apache Camel, carrying master data from the ERP to the shop
+  docker-compose-erp.yaml         the ERP: master data as files, served over SFTP
+  docker-compose-monitoring.yaml  logs + metrics (Loki, Alloy, Prometheus, cAdvisor, Grafana) — company systems only
   config/                         stack config: gateway (nginx + certs), demo secrets (env files)
   doc/                            TimberWorks brand: design.md, lore.md
   volumes/                        runtime data — DBs + PrestaShop web root (gitignored)

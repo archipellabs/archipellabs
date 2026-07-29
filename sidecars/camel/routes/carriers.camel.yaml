@@ -50,7 +50,7 @@
       parameters:
         password: "{{env:FEEDS_PASSWORD}}"
         fileName: carriers.csv
-        delay: 3000
+        delay: 30000
         readLock: changed
         # State, not a message: read in place, never moved — so it needs an
         # idempotent key, or it would be re-read forever.
@@ -177,6 +177,8 @@
                                       simple: >-
                                         <prestashop><delivery><id>${header.deliveryId}</id><price>${header.price}</price></delivery></prestashop>
                                   - toD: "{{shop.api}}/deliveries/${header.deliveryId}?httpMethod=PATCH&{{shop.auth}}"
+                                  - log:
+                                      message: "delivery row ${header.deliveryId} updated: ${header.carrierName} / ${header.country} @ ${header.price} (active=${header.carrierActive}, delay=${header.delayDays}d)"
                             otherwise:
                               steps:
                                 # id_shop/id_shop_group explicit: PrestaShop's own
@@ -187,11 +189,11 @@
                                       <prestashop><delivery><id_carrier>${header.carrierShopId}</id_carrier><id_range_price>${header.rangeId}</id_range_price><id_range_weight>0</id_range_weight><id_zone>${header.zoneId}</id_zone><id_shop>1</id_shop><id_shop_group>1</id_shop_group><price>${header.price}</price></delivery></prestashop>
                                 - to: "{{shop.api}}/deliveries?httpMethod=POST&{{shop.auth}}"
                                 - log:
-                                    message: "carrier ${header.carrierName}: now serving ${header.country} (zone ${header.zoneId}) @ ${header.price}"
+                                    message: "delivery row created: ${header.carrierName} / ${header.country} (zone ${header.zoneId}) @ ${header.price}"
                   otherwise:
                     steps:
                       - log:
-                          message: "carrier ${header.carrierName}: skipped ${header.country} — carrier/zone/range not resolvable"
+                          message: "skipped ${header.carrierName} / ${header.country}: carrier, zone or price range not resolvable"
 
         - to: "direct:carriers-prune"
 
@@ -276,7 +278,7 @@
               - simple: "${body} != ''"
                 steps:
                   - log:
-                      message: "carriers: pruning delivery rows the feed no longer lists (${body})"
+                      message: "deleting delivery rows absent from the feed: ${body}"
                   - split:
                       tokenize: ","
                       steps:

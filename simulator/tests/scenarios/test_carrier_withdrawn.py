@@ -10,8 +10,13 @@ the failure is invisible at the infrastructure layer and only exists as a
 business outcome, which is why the assertions here are about whether a customer
 could buy rather than about any status code.
 
-Slow by nature: several real browser journeys, plus waiting for the integration
-layer to reconcile. Run with `-m scenario`.
+The scenario runs the full arc — break, observe, fix, confirm the fix — and ends
+with the company healthy and *verified* healthy. An incident you cannot undo is a
+migration, not an incident; and a scenario that leaves the shop dark for whatever
+runs next is worse than one that fails.
+
+Slow by nature: three real browser journeys, plus waiting for the integration
+layer to reconcile between each step. Run with `-m scenario`.
 """
 
 import os
@@ -55,11 +60,10 @@ def reached(result: dict) -> set[str]:
     return {e["state"] for e in result["events"] if e["event"] == "state_completed"}
 
 
-async def test_withdrawing_canada_from_the_feed_stops_canadian_checkout(
-    master_data, shop
-):
+async def test_canada_goes_dark_and_is_brought_back(master_data, shop, read_feed):
     canada = await zone_of(shop, "CA")
     united_states = await zone_of(shop, "US")
+    original = read_feed("carriers.csv")
 
     # ── the company is healthy ───────────────────────────────────────────────
     await until_serving(shop, CROSS_BORDER, {united_states, canada})
@@ -73,17 +77,6 @@ async def test_withdrawing_canada_from_the_feed_stops_canadian_checkout(
     # what a single carrier could never have shown.
     await until_serving(shop, CROSS_BORDER, {united_states})
 
-    # And the US row is the SAME row, not a replacement. The sync merges — it
-    # touches only what the feed changed — so withdrawing Canada never takes the
-    # US offline, not even for the moment it takes to rebuild. A rebuild would
-    # satisfy the assertion above and still have dropped every US order placed
-    # while it ran.
-    after = await delivery_rows(shop, CROSS_BORDER)
-    assert after[united_states] == before[united_states], (
-        "withdrawing Canada replaced the US delivery row instead of leaving it "
-        "alone — the sync is rebuilding, not merging"
-    )
-
     # ── the only symptom is a customer who cannot buy ────────────────────────
     canadian = await buys("CA")
     assert canadian["completed"] is False, "a Canadian should not be able to check out"
@@ -96,27 +89,24 @@ async def test_withdrawing_canada_from_the_feed_stops_canadian_checkout(
     american = await buys("US")
     assert american["completed"] is True, "the US market must keep selling throughout"
 
-
-async def test_the_shop_recovers_when_the_line_is_restored(
-    master_data, shop, read_feed
-):
-    """The other half: an incident you cannot undo is a migration, not an incident.
-
-    Separate test so the recovery path is exercised on its own — if restoring the
-    feed did not heal the shop, the previous test would still pass and leave the
-    company broken for everything after it.
-    """
-    canada = await zone_of(shop, "CA")
-    united_states = await zone_of(shop, "US")
-    original = read_feed("carriers.csv")
-
-    master_data("carriers.csv", WITHOUT_CANADA)
-    await until_serving(shop, CROSS_BORDER, {united_states})
-
+    # ── the fix: put the line back ───────────────────────────────────────────
+    # Asserted here rather than left to the fixture's restore, so that a scenario
+    # which cannot be undone fails loudly instead of quietly handing the next
+    # test a shop that still cannot ship to Canada.
     master_data("carriers.csv", original)
     await until_serving(shop, CROSS_BORDER, {united_states, canada})
 
-    canadian = await buys("CA")
-    assert canadian["completed"] is True, (
-        "restoring the feed should restore Canadian checkout"
+    healed = await buys("CA")
+    assert healed["completed"] is True, (
+        "restoring the line to carriers.csv should restore Canadian checkout"
+    )
+
+    # Through the whole break-and-fix cycle the US delivery row was never
+    # replaced. That is the merge (doc §6): only the row the feed changed is
+    # touched, so the shop is never briefly unable to ship anywhere — which a
+    # wipe-and-rebuild sync would have done twice over, and which none of the
+    # assertions above would have caught.
+    after = await delivery_rows(shop, CROSS_BORDER)
+    assert after[united_states] == before[united_states], (
+        "the US delivery row was replaced — the sync is rebuilding, not merging"
     )

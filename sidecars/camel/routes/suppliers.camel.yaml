@@ -22,7 +22,7 @@
       parameters:
         password: "{{env:FEEDS_PASSWORD}}"
         fileName: suppliers.csv
-        delay: 3000
+        delay: 30000
         readLock: changed
         # State, not a message: read in place, never moved. Which means it would
         # be re-read forever without an idempotent key — on last-modified, so it

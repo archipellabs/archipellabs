@@ -31,7 +31,7 @@ services:
     env_file:
       - ./config/matomo/default.env
     volumes:
-      - ./volumes/matomodb:/var/lib/mysql
+      - matomodb:/var/lib/mysql
     networks:
       - archipellabs_default_net
 
@@ -47,14 +47,17 @@ services:
     env_file:
       - ./config/matomo/default.env
     volumes:
-      - ./volumes/matomo:/var/www/html
+      - matomo:/var/www/html
       - ../../sidecars/matomo:/opt/matomo-sidecar:ro
     networks:
       - archipellabs_default_net
     # Populate the app dir from the image if empty, then run the headless install.
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - "[ -f /var/www/html/core/bootstrap.php ] || cp -a /usr/src/matomo/. /var/www/html/; exec php /opt/matomo-sidecar/install.php"
+      # install, then the analyst token in a FRESH process (see agent-token.php),
+      # then hand the tree to www-data — last, because every step before it runs
+      # as root and Matomo writes cache as it goes.
+      - "[ -f /var/www/html/core/bootstrap.php ] || cp -a /usr/src/matomo/. /var/www/html/; php /opt/matomo-sidecar/install.php && php /opt/matomo-sidecar/agent-token.php; rc=$$?; chown -R www-data:www-data /var/www/html; exit $$rc"
     restart: "no"
 
   matomo:
@@ -72,7 +75,7 @@ services:
     volumes:
       # App files (config.ini.php, plugins, tmp) persist here and are shared with
       # the cron container so it operates on the same install.
-      - ./volumes/matomo:/var/www/html
+      - matomo:/var/www/html
     ports:
       - "8080:80"
     networks:
@@ -91,11 +94,35 @@ services:
     env_file:
       - ./config/matomo/default.env
     volumes:
-      - ./volumes/matomo:/var/www/html
+      - matomo:/var/www/html
     networks:
       - archipellabs_default_net
+    # As www-data, like the web container. Archiving writes into tmp/ and the
+    # Symfony cache, so running it as root re-creates root-owned files every five
+    # minutes and quietly undoes the sidecar's chown — Matomo then answers every
+    # request with "couldn't write to some directories", minutes after a
+    # provisioning run that looked completely clean.
+    user: www-data
+    # stdout only: core:archive narrates every site and period it processes, which
+    # is several screens per cycle and says nothing unless it fails. Failures go to
+    # stderr and still surface.
     entrypoint: >
       /bin/sh -c "while true; do
-      php /var/www/html/console core:archive;
+      php /var/www/html/console core:archive --no-interaction >/dev/null;
       sleep 300;
       done"
+
+# Named volumes, not bind mounts. The application directories are hundreds of
+# megabytes of vendor code written once by the image and never edited by hand;
+# through a macOS bind mount that copy took FOUR MINUTES on every cold start,
+# against a 51-second install. Config and master data stay bind-mounted above,
+# because those are the files you actually open.
+#
+# `name:` is set explicitly so the volume is called exactly this and not
+# <project>_<key> — one prefix for the whole stack means `docker volume ls
+# --filter name=archipellabs_default_` finds all of them and nothing else.
+volumes:
+  matomo:
+    name: archipellabs_default_matomo
+  matomodb:
+    name: archipellabs_default_matomodb

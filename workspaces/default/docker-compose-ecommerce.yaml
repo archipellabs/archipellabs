@@ -11,7 +11,7 @@ services:
     env_file:
       - ./config/prestashop/default.env
     volumes:
-      - ./volumes/prestashopdb:/var/lib/mysql
+      - prestashopdb:/var/lib/mysql
     networks:
       - archipellabs_default_net
 
@@ -31,7 +31,7 @@ services:
     depends_on:
       - prestashopdb
     volumes:
-      - ./volumes/prestashop/:/var/www/html/
+      - prestashop:/var/www/html
     ports:
       - 80
     # All config + demo secrets for the stack live in the stack env_file.
@@ -62,8 +62,32 @@ services:
     networks:
       - archipellabs_default_net
     volumes:
-      - ./volumes/prestashop:/var/www/html
+      - prestashop:/var/www/html
       - ../../sidecars/prestashop:/opt/sidecar:ro
     # Override the image's installer/apache entrypoint: just run our PHP CLI.
-    entrypoint: ["php", "/opt/sidecar/bin/provision"]
+    #
+    # Then hand the web root back to www-data. This container runs as root, so
+    # every theme, module and translation it installs lands root-owned — 8000+
+    # files the Apache workers cannot write. Same rule as the Matomo sidecar: if
+    # you write into an app's volume as root, you give it back before you exit.
+    entrypoint:
+      - sh
+      - -c
+      - "php /opt/sidecar/bin/provision \"$$@\"; rc=$$?; chown -R www-data:www-data /var/www/html; exit $$rc"
+      - --
     restart: "no"
+
+# Named volumes, not bind mounts. The application directories are hundreds of
+# megabytes of vendor code written once by the image and never edited by hand;
+# through a macOS bind mount that copy took FOUR MINUTES on every cold start,
+# against a 51-second install. Config and master data stay bind-mounted above,
+# because those are the files you actually open.
+#
+# `name:` is set explicitly so the volume is called exactly this and not
+# <project>_<key> — one prefix for the whole stack means `docker volume ls
+# --filter name=archipellabs_default_` finds all of them and nothing else.
+volumes:
+  prestashop:
+    name: archipellabs_default_prestashop
+  prestashopdb:
+    name: archipellabs_default_prestashopdb

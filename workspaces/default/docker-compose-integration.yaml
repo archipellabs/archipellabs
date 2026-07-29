@@ -44,11 +44,35 @@ services:
       FEEDS_HOST: erpfile
       FEEDS_USER: feeds
       FEEDS_PASSWORD: feeds
+    # Nothing here can do anything until the shop exists and is provisioned, and
+    # trying anyway is expensive: every poll fails, retries and logs a stack
+    # trace, while an emulated JVM (the image is amd64-only) burns most of a core
+    # competing with the very install it is waiting for. Waiting for provisioning
+    # to finish removes the whole class of bootstrap noise.
+    depends_on:
+      prestashop-sidecar:
+        condition: service_completed_successfully
     volumes:
       - ../../sidecars/camel/routes:/routes:ro
     # --source-dir loads every route in the directory, so adding a route is adding
     # a file. --dev watches them and reloads on change, which suits routes that are
     # edited (and generated) frequently; drop it outside a development workspace.
-    command: ["run", "--source-dir=/routes", "--dev"]
+    #
+    # --name        without it Camel names the context after whichever route file
+    #               it happened to load first, so every carrier metric came back
+    #               labelled camelContext="suppliers".
+    # --observe     Micrometer/Prometheus at :8080/observe/metrics, scraped by the
+    #               monitoring stack. This is where `camel_exchanges_failed_total`
+    #               stays at zero while the shop stops selling to a country.
+    # --logging-color=false
+    #               logs go to Loki as well as the terminal, and ANSI escapes make
+    #               them unreadable and unsearchable there.
+    command:
+      - run
+      - --source-dir=/routes
+      - --dev
+      - --name=integration
+      - --observe
+      - --logging-color=false
     networks:
       - archipellabs_default_net

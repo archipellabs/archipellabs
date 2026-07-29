@@ -32,7 +32,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./volumes/simulatordb:/var/lib/postgresql/data
+      - simulatordb:/var/lib/postgresql/data
     networks:
       - archipellabs_default_net
 
@@ -86,3 +86,16 @@ services:
   #     - ./config/simulator/default.env
   #     - path: ./config/simulator/.env
   #       required: false
+
+# Named volumes, not bind mounts. The application directories are hundreds of
+# megabytes of vendor code written once by the image and never edited by hand;
+# through a macOS bind mount that copy took FOUR MINUTES on every cold start,
+# against a 51-second install. Config and master data stay bind-mounted above,
+# because those are the files you actually open.
+#
+# `name:` is set explicitly so the volume is called exactly this and not
+# <project>_<key> — one prefix for the whole stack means `docker volume ls
+# --filter name=archipellabs_default_` finds all of them and nothing else.
+volumes:
+  simulatordb:
+    name: archipellabs_default_simulatordb

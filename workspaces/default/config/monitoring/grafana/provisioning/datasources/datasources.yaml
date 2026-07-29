@@ -1,0 +1,20 @@
+# Datasources as code — provisioned at boot, not clicked in the UI.
+#
+# Both point at company systems only. There is deliberately NO datasource for the
+# simulator's Postgres: that database is the instrument's own record of what it
+# did, and the agent's world is the company's tools (doc §4).
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
