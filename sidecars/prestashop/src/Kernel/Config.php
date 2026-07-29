@@ -54,7 +54,7 @@ final class Config
 
     public function matomoUrl(): string
     {
-        return getenv('MATOMO_URL') ?: 'https://localhost/stats/';
+        return getenv('MATOMO_URL') ?: 'https://tracking.archipellabs.test/';
     }
 
     public function matomoSiteId(): string

@@ -1,7 +1,7 @@
 """End-to-end customer-journey tests against a live PrestaShop (marker: e2e).
 
 Requires a running PrestaShop reachable at SHOP_BASE_URL (default
-`https://localhost`). Skip the whole module by deselecting the `e2e`
+`https://shop.archipellabs.test`). Skip the whole module by deselecting the `e2e`
 marker:
 
     uv run pytest -m "not e2e"
@@ -28,7 +28,7 @@ def _env_bool(name: str, default: bool) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes"}
 
 
-BASE_URL = os.getenv("SHOP_BASE_URL", "https://localhost")
+BASE_URL = os.getenv("SHOP_BASE_URL", "https://shop.archipellabs.test")
 HEADLESS = _env_bool("HEADLESS", False)
 FAST = _env_bool("FAST", True)
 

@@ -30,7 +30,7 @@ from tests.scenarios.conftest import delivery_rows, until_serving, zone_of
 
 pytestmark = [pytest.mark.scenario, pytest.mark.e2e]
 
-BASE_URL = os.getenv("SHOP_BASE_URL", "https://localhost")
+BASE_URL = os.getenv("SHOP_BASE_URL", "https://shop.archipellabs.test")
 HEADLESS = os.getenv("HEADLESS", "true").strip().lower() in {"1", "true", "yes"}
 FAST = os.getenv("FAST", "true").strip().lower() in {"1", "true", "yes"}
 

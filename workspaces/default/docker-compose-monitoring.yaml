@@ -110,13 +110,6 @@ services:
     container_name: grafana
     image: grafana/grafana:11.4.0
     restart: unless-stopped
-    # Published directly rather than proxied behind the gateway, like the portal
-    # on 8443. A subpath needs Grafana's root_url and serve_from_sub_path to agree
-    # with an nginx location, and nginx additionally caches the upstream's IP at
-    # config load — so recreating Grafana (which happens on every dashboard change)
-    # 502s until the gateway is reloaded. A bound port has none of that.
-    ports:
-      - "3000:3000"
     env_file:
       - ./config/monitoring/default.env
       - path: ./config/monitoring/.env

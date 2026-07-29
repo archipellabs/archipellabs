@@ -56,7 +56,7 @@ from src.services.browser.service import browser_session
 
 pytestmark = pytest.mark.e2e
 
-BASE_URL = os.getenv("SHOP_BASE_URL", "https://localhost")
+BASE_URL = os.getenv("SHOP_BASE_URL", "https://shop.archipellabs.test")
 HEADLESS = os.getenv("HEADLESS", "true").strip().lower() in {"1", "true", "yes"}
 CHECK_TIMEOUT_MS = 3_000
 GOTO_TIMEOUT_MS = 12_000

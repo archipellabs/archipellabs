@@ -40,7 +40,7 @@ workspaces/default/               the local demo stack
   docker-compose.yaml             entrypoint — creates the network, brings up the stacks + gateway
   docker-compose-ecommerce.yaml   storefront: PrestaShop, MySQL, Redis, provisioning sidecar
   docker-compose-tracking.yaml    Matomo web-analytics stack + its install sidecar
-  docker-compose-simulator.yaml   simulator stack: activity DB (Postgres) + portal; the simulator app is deferred — run locally
+  docker-compose-simulator.yaml   the simulator, its activity DB (Postgres) and the portal that visualises it
   docker-compose-integration.yaml the ESB: Apache Camel, carrying master data from the ERP to the shop
   docker-compose-erp.yaml         the ERP: master data as files, served over SFTP
   docker-compose-monitoring.yaml  logs + metrics (Loki, Alloy, Prometheus, cAdvisor, Grafana) — company systems only
@@ -52,7 +52,24 @@ workspaces/default/               the local demo stack
 
 ## Quickstart
 
-### 1. Storefront + analytics (Docker)
+### 1. Hostnames (one-time)
+
+Every service is served at the root of its own name, so they need to resolve on
+your machine. One line, once:
+
+```sh
+echo '127.0.0.1  archipellabs.test shop.archipellabs.test tracking.archipellabs.test portal.archipellabs.test grafana.archipellabs.test' | sudo tee -a /etc/hosts
+```
+
+`.test` is reserved by RFC 6761 and can never collide with real DNS. The gateway
+carries the same names as Docker network aliases, so **one URL works from your
+browser and from inside a container** — which is what lets the simulator drive
+Chromium against the storefront at all.
+
+The TLS certificate is self-signed, so a browser will warn once; it is a proper
+v3 certificate covering every name, so the warning is dismissable.
+
+### 2. The whole stack (Docker)
 
 Requires Docker with Compose v2. From `workspaces/default/`:
 
@@ -64,29 +81,31 @@ Requires Docker with Compose v2. From `workspaces/default/`:
 docker compose up -d
 ```
 
-The storefront is served at `https://localhost` (self-signed cert), Matomo at
-`https://localhost/stats/`, and the portal (journey analytics + cartography) at
-`https://localhost:8443`.
+That brings up everything, simulator included:
 
-### 2. Simulator (local Python — temporary)
+| | |
+|---|---|
+| `https://shop.archipellabs.test` | the storefront (plus `/admin-dev`, `/api`) |
+| `https://tracking.archipellabs.test` | Matomo |
+| `https://portal.archipellabs.test` | the simulator's frontend — journey analytics + cartography |
+| `https://grafana.archipellabs.test` | logs and metrics |
 
-For now the simulator runs from your host with Python, **not** in a container: a
-host browser resolves `localhost` to the published gateway, so the shop's
-canonical domain and the Matomo tracker work without extra DNS. Containerising it
-needs a hostname that resolves the same on the host and inside containers — a small
-DNS setup that's still TODO (see [`docker-compose-simulator.yaml`](workspaces/default/docker-compose-simulator.yaml)).
+### 3. Running the simulator on your host instead
+
+The simulator runs in Docker by default. To iterate on it, stop the container and
+run it from source:
 
 ```sh
+docker compose stop simulator
+
 cd simulator
 # one-time setup (uv sync, Playwright, generated clients) — see simulator/README.md
 uv run python -m src.app
 ```
 
-It reads `simulator/.env` (gitignored), defaulting to `https://localhost` +
-`redis://localhost:6379`. Set the API credentials to match
-`workspaces/default/config/prestashop/default.env` (`PRESTASHOP_WEBSERVICE_API_KEY`,
-`PRESTASHOP_CLIENT_ID`, `PRESTASHOP_CLIENT_SECRET`), and turn on traffic with
-`ARRIVALS_ENABLED=true`. Full knob list: [`simulator/README.md`](simulator/README.md).
+It reads `simulator/.env` (gitignored). The same hostnames work from the host, so
+nothing else changes. Turn on traffic with `ARRIVALS_ENABLED=true`; full knob
+list: [`simulator/README.md`](simulator/README.md).
 
 ## Configuration & secrets
 
@@ -98,9 +117,10 @@ scattered inline:
   — the single source of truth for the storefront stack's demo credentials
   (database, back-office admin, Admin API client, Webservice key). The compose
   services read it via `env_file`.
-- **`simulator/.env`** (gitignored) — the local simulator's config; its API secrets
-  must match `prestashop/default.env`. (The committed
-  `config/simulator/default.env` is for the deferred Docker deployment.)
+- **[`workspaces/default/config/simulator/default.env`](workspaces/default/config/simulator/default.env)**
+  — what the simulator container reads. **`simulator/.env`** (gitignored) is the
+  same config for a host-run simulator; its API secrets must match
+  `prestashop/default.env`.
 
 > ⚠️ **These are demo-only credentials for the local stack.** They are safe to
 > commit *because they protect nothing real* (localhost, self-signed TLS, no

@@ -5,12 +5,9 @@
 # + cartography). Both run in Docker and are brought up by the entrypoint (see the
 # `include:` in docker-compose.yaml); the gateway routes /portal/ to the portal.
 #
-# The simulator APP itself is still run LOCALLY from Python, not in Docker (see the
-# commented `simulator` service below and the root README, "Simulator (local
-# Python — temporary)"). It drives Chromium against the shop's canonical
-# https://localhost/… URLs, which a container can't resolve to the gateway the way
-# a host browser can; containerising it is DEFERRED until a shared hostname / DNS
-# is set up.
+# All three run in Docker: the activity database, the portal that visualises it,
+# and the simulator itself. The simulator ran on the host until the stack got
+# real hostnames — see the service's own comment for why that was the blocker.
 
 # No top-level `networks:` here — the docker-compose.yaml entrypoint owns and
 # creates the shared network, and these services attach to it via the include.
@@ -51,41 +48,51 @@ services:
       - simulatordb
     # Loads only db.env (shared with simulatordb) — the activity DB is all the portal
     # touches, so it never sees the simulator's PrestaShop/Redis secrets in
-    # default.env. Served at the root; the gateway publishes it on its own port
-    # (https://localhost:8443), so there's no context path to configure.
+    # default.env. Served at the root of https://portal.archipellabs.test, so
+    # there is no context path to configure.
     env_file:
       - ./config/simulator/db.env
     networks:
       - archipellabs_default_net
 
-  # Simulator as a container — DEFERRED, so kept commented out (the entrypoint
-  # would otherwise try to build and run it). It drives Chromium in Docker, but the
-  # shop's canonical domain and the Matomo tracker URL are absolute
-  # (https://localhost/…), which a container can't resolve to the gateway the way a
-  # host browser can. Until a shared hostname / DNS is set up, run the simulator
-  # LOCALLY from Python instead — see the root README, "Simulator (local Python —
-  # temporary)". Uncomment to re-enable once that's solved.
+  # The simulator itself. It drives real Chromium sessions against the storefront
+  # — browsing, adding to cart, checking out — and that traffic is what makes the
+  # shop a company rather than a demo.
   #
-  # simulator:
-  #   container_name: simulator
-  #   build:
-  #     context: ../../simulator
-  #     dockerfile: Dockerfile
-  #   image: archipellabs-simulator:latest
-  #   restart: unless-stopped
-  #   init: true # reap Chromium child processes
-  #   shm_size: 1gb # Chromium needs more than Docker's default 64MB /dev/shm
-  #   networks:
-  #     - archipellabs_default_net
-  #   # Config ships committed at config/simulator/{db,default}.env (demo values,
-  #   # works out of the box). Copy to .env in the same folder for local overrides —
-  #   # that layer is optional and gitignored. The simulator needs both files (the
-  #   # activity DB in db.env, everything else in default.env).
-  #   env_file:
-  #     - ./config/simulator/db.env
-  #     - ./config/simulator/default.env
-  #     - path: ./config/simulator/.env
-  #       required: false
+  # This ran on the host until the stack got real hostnames. The blocker was
+  # never Docker: the shop's canonical domain was `localhost`, which inside a
+  # container means the container itself, so Chromium could not reach the
+  # storefront and PrestaShop answered 302 to any other Host. Now that the
+  # gateway carries `shop.archipellabs.test` as a network alias, the container
+  # and a human browser use the SAME url, and the redirect problem is gone
+  # rather than worked around.
+  simulator:
+    container_name: simulator
+    build:
+      context: ../../simulator
+      dockerfile: Dockerfile
+    image: archipellabs-simulator:latest
+    restart: unless-stopped
+    init: true # reap Chromium child processes
+    shm_size: 1gb # Chromium needs more than Docker's default 64MB /dev/shm
+    depends_on:
+      simulatordb:
+        condition: service_started
+      redis:
+        condition: service_started
+      # Nothing to browse until the shop exists: the storefront is provisioned
+      # here, and the catalogue is seeded by this service once it starts.
+      prestashop-sidecar:
+        condition: service_completed_successfully
+    # Committed demo values in db.env + default.env; copy to .env in the same
+    # folder for local overrides (gitignored, optional).
+    env_file:
+      - ./config/simulator/db.env
+      - ./config/simulator/default.env
+      - path: ./config/simulator/.env
+        required: false
+    networks:
+      - archipellabs_default_net
 
 # Named volumes, not bind mounts. The application directories are hundreds of
 # megabytes of vendor code written once by the image and never edited by hand;

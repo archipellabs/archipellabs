@@ -118,7 +118,7 @@ $adminLogin = env('MATOMO_ADMIN_LOGIN', 'admin');
 $adminPass = env('MATOMO_ADMIN_PASSWORD', 'changeme_demo');
 $adminEmail = env('MATOMO_ADMIN_EMAIL', 'admin@timberworks.test');
 $siteName = env('MATOMO_SITE_NAME', 'TimberWorks');
-$siteUrl = env('MATOMO_SITE_URL', 'https://localhost/');
+$siteUrl = env('MATOMO_SITE_URL', 'https://shop.archipellabs.test/');
 // TimberWorks is a Dallas company, so its reports read on a Dallas clock — the
 // same one the shop stamps orders with (ConfigureNorthAmerica::TIMEZONE) and the
 // same one the simulator's arrival curve follows. Matomo defaults to UTC, which
@@ -177,8 +177,8 @@ if (!is_file($configFile)) {
         . "charset = \"utf8mb4\"\n\n"
         . "[General]\n"
         . "salt = \"{$salt}\"\n"
+        . "trusted_hosts[] = \"tracking.archipellabs.test\"\n"
         . "trusted_hosts[] = \"localhost\"\n"
-        . "trusted_hosts[] = \"localhost:8080\"\n"
         . "trusted_hosts[] = \"gateway\"\n"
         . "trusted_hosts[] = \"matomo\"\n";
     if (!is_dir(dirname($configFile))) {
