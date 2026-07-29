@@ -1,0 +1,4 @@
+supplier_id,supplier_code,supplier_name,country,contact_email,active
+3c9f7b21-8e04-4d6a-b153-7c8d9e0f1a2b,NORDWOOD,Nordwood Timber,CA,orders@nordwood.test,1
+d51a4e83-6b27-4f19-a0c8-2d3e4f5a6b7c,CASCADE,Cascade Lumber Co,US,sales@cascadelumber.test,1
+6a8c2f40-9d13-4e75-b6a2-8f9e0d1c2b3a,BLACKPINE,Blackpine Forestry,CA,contact@blackpine.test,1

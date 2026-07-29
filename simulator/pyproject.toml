@@ -35,6 +35,7 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 markers = [
     "e2e: hits a live external service — PrestaShop at SHOP_BASE_URL (default https://localhost) and/or the activity Postgres at SIMULATORDB_URL. Lives in tests/e2e/; deselected by default in CI. tests/unit (isolated) and tests/component (in-process flows over a fake Redis) need nothing external.",
+    "scenario: drives the WHOLE stack and mutates it — edits the company's master data in sidecars/erpfile, waits for the integration layer to reconcile, then judges the result by whether a customer can buy. Slow (minutes, several browser journeys) and stateful: each scenario restores what it changed, but a killed run can leave the shop mid-incident. Lives in tests/scenarios/.",
 ]
 
 [tool.ruff]

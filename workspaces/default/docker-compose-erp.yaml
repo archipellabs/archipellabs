@@ -1,0 +1,62 @@
+# ERP — the company's source of truth for master data.
+#
+# Today that is a set of files: `carriers.csv`, `suppliers.csv`, later products.
+# A simplified ERP whose entire storage engine is a directory, which is what a
+# great many real companies actually run on.
+#
+# The file is named for the ROLE, not the implementation — `tracking` is Matomo,
+# `ecommerce` is PrestaShop. A real ERP replacing this keeps the same filename,
+# and the ERPNext branch does exactly that: merging it will conflict here, which
+# is the point. Two ERPs should never run by accident.
+#
+# ── This is MDM, not file transfer ──────────────────────────────────────────
+#
+# The files are STATE, not messages. They are not delivered, consumed and
+# archived; they simply are what the company currently believes. So there is no
+# in/, no archive/, and no seeder copying files into a drop — the earlier design
+# had all three, and the seeder existed only to undo the damage of a consumer
+# that ate its own source of truth.
+#
+# What follows from treating them as state:
+#
+#   * `data/` is mounted READ-ONLY from the repository. The master data lives in
+#     git, is edited in a pull request, and every change carries an author, a
+#     timestamp and a diff — a better audit trail than a folder of copies.
+#   * The integration reads in place (`noop=true`) and re-reads when the file
+#     changes. Nothing is moved, so nothing needs putting back.
+#   * `out/` is the one writable area, for DERIVED documents — the orders journal
+#     to come. Derived is not master data, and it does not belong in git.
+#
+# The ownership split is the point, and SFTP permissions make it a credential
+# rather than a convention: an agent that can edit the ledger is not an
+# accountant (doc/agent-org-lab.md §6).
+#
+# No top-level `networks:` — the docker-compose.yaml entrypoint owns and creates
+# the shared network; this service attaches to it via the include.
+services:
+
+  # erpfile — the file-shaped ERP itself, reachable over SFTP: how humans and
+  # agents get at the company's data, with a real permission model rather than a
+  # declared one. Users are declared in the image's `user:pass:uid:gid:dir` form
+  # and chrooted to /home/<user>, so the directory layout IS the permission model.
+  #
+  #   feeds — the integration's account: reads data/, writes out/.
+  #
+  # A second, read-only account for agents arrives with the access-gradient work.
+  erpfile:
+    container_name: erpfile
+    image: atmoz/sftp:alpine
+    restart: unless-stopped
+    # uid 1001 rather than the image default 1000: other images in this stack
+    # already run as 1000, and matching uids across unrelated services is how
+    # bind-mount ownership bugs start.
+    command: ["feeds:feeds:1001:1001:out"]
+    # data/ is the repository, read-only — the integration must not be able to
+    # rewrite the company's master data as a side effect of reading it.
+    # Mounted at subdirectories rather than at /home/feeds, because OpenSSH
+    # refuses to chroot into a directory it does not own.
+    volumes:
+      - ../../sidecars/erpfile/data:/home/feeds/data:ro
+      - ./volumes/erpfile/out:/home/feeds/out
+    networks:
+      - archipellabs_default_net

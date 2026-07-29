@@ -1,0 +1,14 @@
+# Heartbeat — proves the integration runtime is alive and its routes loaded.
+#
+# Deliberately trivial: it is the smoke test for the container, the mount and the
+# YAML loader, so it must never depend on anything outside this file. When a real
+# route misbehaves, this is what tells you whether the runtime itself is healthy.
+- route:
+    id: health
+    from:
+      uri: timer:health
+      parameters:
+        period: 30000
+      steps:
+        - log:
+            message: "integration layer alive — ${date:now:yyyy-MM-dd HH:mm:ss}"

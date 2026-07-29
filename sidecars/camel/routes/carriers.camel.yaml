@@ -1,0 +1,283 @@
+# Carriers — reconcile the shop's carriers with the ERP's master data.
+#
+# One row per (carrier, country): who we ship with, where, at what price. So
+# removing a country is removing a line, which is the reference incident in
+# doc/agent-org-lab.md §2.
+#
+# FULL SNAPSHOT, LOADED AS A MERGE. The file is the whole truth, not a set of
+# changes, so the shop is made to match it. There are two textbook ways to load a
+# snapshot, and only one of them suits a shop that is open for business:
+#
+#   truncate-and-load   wipe the target, rebuild it from the file
+#   merge               upsert what the file lists, then delete what it no longer
+#                       lists ("delete detection")
+#
+# This route merges. Truncate-and-load is simpler and was the first version, but
+# it leaves the shop with no shipping at all between the wipe and the rebuild —
+# about a second, on every run, for every carrier, even when nothing changed.
+# That is why real master-data batches run overnight. We want the opposite: the
+# feed is watched and reconciles within seconds, so a change shows up while
+# someone is still looking at the screen. A load that runs while customers are
+# checking out has to be a merge.
+#
+# So a row that stays is only ever PATCHed, never deleted and recreated, and
+# withdrawing Canada no longer disturbs the US on its way through.
+#
+# WHAT THIS OWNS. There is no carrier_zone resource in the Webservice, so zone
+# coverage cannot be set through the API; provisioning owns countries, zones and
+# coverage. That costs nothing, because coverage is not what makes a carrier
+# quote: a carrier with no delivery row for a zone offers nothing at all. The
+# delivery row is the effective switch, and it is on this side of the line.
+#
+# Hence two distinct incidents, which is why `active` earns its column:
+#
+#   active=0          the carrier disappears from every market at once
+#   drop the CA row   it stops quoting for Canada, the US untouched
+#
+# KNOWN DEFECT: matching is by `name`, so renaming a carrier creates a second
+# one. `id_reference` looks like the field for a technical id but PrestaShop owns
+# it — see the PATCH note below. Fix is a cross-reference of our own (§4).
+
+# ── the source adapter: the only part a real ERP replaces ───────────────────
+# Getting the data and reconciling the shop change for different reasons — the
+# source changes with the ERP, the reconciler with PrestaShop — so they are two
+# routes joined by a canonical snapshot. When a real ERP lands, add a route that
+# hands the same list of rows to direct:carriers-snapshot and delete this one.
+- route:
+    id: carriers-from-file
+    from:
+      uri: "{{feeds.uri}}"
+      parameters:
+        password: "{{env:FEEDS_PASSWORD}}"
+        fileName: carriers.csv
+        delay: 3000
+        readLock: changed
+        # State, not a message: read in place, never moved — so it needs an
+        # idempotent key, or it would be re-read forever.
+        noop: true
+        idempotent: true
+        idempotentKey: "${file:name}-${file:modified}"
+      steps:
+        - unmarshal:
+            csv:
+              useMaps: true
+        - to: "direct:carriers-snapshot"
+
+# ── the reconciler: never knows where the snapshot came from ────────────────
+# Contract: the body is a list of rows keyed carrier_name, active, delay_days,
+# country, price. A list, not a diff — every ERP can produce a full extract,
+# whereas change feeds are vendor-specific and the least reliable part of any
+# ERP's API.
+- route:
+    id: carriers-reconcile
+    from:
+      uri: "direct:carriers-snapshot"
+      steps:
+        - log:
+            message: "carriers feed: ${body.size()} row(s)"
+        # A JSON copy for the prune's set difference, which compares the whole
+        # snapshot against the whole shop and so cannot work row by row.
+        - setProperty:
+            name: feedRows
+            simple: "${body}"
+        - marshal:
+            json: {}
+        - convertBodyTo:
+            type: java.lang.String
+        - setProperty:
+            name: feedJson
+            simple: "${body}"
+        - setBody:
+            simple: "${exchangeProperty.feedRows}"
+
+        # ── upsert: one pass, no deletes ─────────────────────────────────────
+        - split:
+            simple: "${body}"
+            steps:
+              - setHeader:
+                  name: carrierName
+                  simple: "${body[carrier_name]}"
+              - setHeader:
+                  name: carrierActive
+                  simple: "${body[active]}"
+              - setHeader:
+                  name: delayDays
+                  simple: "${body[delay_days]}"
+              - setHeader:
+                  name: country
+                  simple: "${body[country]}"
+              - setHeader:
+                  name: price
+                  simple: "${body[price]}"
+              - setHeader:
+                  name: Output-Format
+                  constant: JSON
+
+              - setHeader:
+                  name: CamelHttpQuery
+                  simple: "display=[id]&filter[name]=${header.carrierName}&filter[deleted]=0"
+              - to: "{{shop.api}}/carriers?httpMethod=GET&{{shop.auth}}"
+              - setHeader:
+                  name: carrierShopId
+                  jq: 'if type == "object" then (.carriers[0].id // "") else "" end'
+
+              # The feed names a country; the shop decides its zone.
+              - setHeader:
+                  name: CamelHttpQuery
+                  simple: "display=[id_zone]&filter[iso_code]=${header.country}"
+              - to: "{{shop.api}}/countries?httpMethod=GET&{{shop.auth}}"
+              - setHeader:
+                  name: zoneId
+                  jq: 'if type == "object" then (.countries[0].id_zone // "") else "" end'
+
+              - setHeader:
+                  name: CamelHttpQuery
+                  simple: "display=[id]&filter[id_carrier]=${header.carrierShopId}"
+              - to: "{{shop.api}}/price_ranges?httpMethod=GET&{{shop.auth}}"
+              - setHeader:
+                  name: rangeId
+                  jq: 'if type == "object" then (.price_ranges[0].id // "") else "" end'
+
+              - choice:
+                  when:
+                    - simple: "${header.carrierShopId} != '' && ${header.zoneId} != '' && ${header.rangeId} != ''"
+                      steps:
+                        # PATCH, not PUT. PUT is a full replace: fields omitted
+                        # from the body are blanked, and it still returns 200.
+                        # Sending only active+delay via PUT zeroed
+                        # `id_reference` — which ps_module_carrier uses to map
+                        # payment modules to carriers — so the shop silently lost
+                        # every payment method and checkout died a step later,
+                        # nowhere near the change.
+                        - setBody:
+                            simple: >-
+                              <prestashop><carrier><id>${header.carrierShopId}</id><active>${header.carrierActive}</active><delay><language id="1">${header.delayDays} business days</language></delay></carrier></prestashop>
+                        - removeHeader:
+                            name: CamelHttpQuery
+                        - toD: "{{shop.api}}/carriers/${header.carrierShopId}?httpMethod=PATCH&{{shop.auth}}"
+
+                        # A delivery row's identity is (carrier, zone) — both of
+                        # them things the feed already knows — so it can be found
+                        # and updated in place rather than rebuilt.
+                        - setHeader:
+                            name: CamelHttpQuery
+                            simple: "display=[id]&filter[id_carrier]=${header.carrierShopId}&filter[id_zone]=${header.zoneId}"
+                        - to: "{{shop.api}}/deliveries?httpMethod=GET&{{shop.auth}}"
+                        - setHeader:
+                            name: deliveryId
+                            jq: 'if type == "object" then (.deliveries[0].id // "") else "" end'
+                        - removeHeader:
+                            name: CamelHttpQuery
+
+                        - choice:
+                            when:
+                              - simple: "${header.deliveryId} != ''"
+                                steps:
+                                  - setBody:
+                                      simple: >-
+                                        <prestashop><delivery><id>${header.deliveryId}</id><price>${header.price}</price></delivery></prestashop>
+                                  - toD: "{{shop.api}}/deliveries/${header.deliveryId}?httpMethod=PATCH&{{shop.auth}}"
+                            otherwise:
+                              steps:
+                                # id_shop/id_shop_group explicit: PrestaShop's own
+                                # helpers disagree (addZone writes NULL, addDeliveryPrice
+                                # writes the shop) and mismatched rows ignore each other.
+                                - setBody:
+                                    simple: >-
+                                      <prestashop><delivery><id_carrier>${header.carrierShopId}</id_carrier><id_range_price>${header.rangeId}</id_range_price><id_range_weight>0</id_range_weight><id_zone>${header.zoneId}</id_zone><id_shop>1</id_shop><id_shop_group>1</id_shop_group><price>${header.price}</price></delivery></prestashop>
+                                - to: "{{shop.api}}/deliveries?httpMethod=POST&{{shop.auth}}"
+                                - log:
+                                    message: "carrier ${header.carrierName}: now serving ${header.country} (zone ${header.zoneId}) @ ${header.price}"
+                  otherwise:
+                    steps:
+                      - log:
+                          message: "carrier ${header.carrierName}: skipped ${header.country} — carrier/zone/range not resolvable"
+
+        - to: "direct:carriers-prune"
+
+# ── delete detection: the other half of a merge ─────────────────────────────
+# Upserting alone can never notice a row that is GONE — there is nothing left to
+# iterate over. So the shop's delivery rows are compared against the whole
+# snapshot, and the ones the file no longer lists are removed. This is the only
+# place anything is deleted, and it touches nothing that the file still names.
+- route:
+    id: carriers-prune
+    from:
+      uri: "direct:carriers-prune"
+      steps:
+        - setHeader:
+            name: Output-Format
+            constant: JSON
+        - setHeader:
+            name: CamelHttpQuery
+            constant: "display=[id,name]&filter[deleted]=0"
+        - to: "{{shop.api}}/carriers?httpMethod=GET&{{shop.auth}}"
+        - convertBodyTo:
+            type: java.lang.String
+        - setProperty:
+            name: shopCarriers
+            simple: "${body}"
+
+        - setHeader:
+            name: CamelHttpQuery
+            constant: "display=[id_zone,iso_code]"
+        - to: "{{shop.api}}/countries?httpMethod=GET&{{shop.auth}}"
+        - convertBodyTo:
+            type: java.lang.String
+        - setProperty:
+            name: shopCountries
+            simple: "${body}"
+
+        - setHeader:
+            name: CamelHttpQuery
+            constant: "display=[id,id_carrier,id_zone]"
+        - to: "{{shop.api}}/deliveries?httpMethod=GET&{{shop.auth}}"
+        - convertBodyTo:
+            type: java.lang.String
+        - setProperty:
+            name: shopDeliveries
+            simple: "${body}"
+        - removeHeader:
+            name: CamelHttpQuery
+
+        # One document, so a single expression can do the set difference.
+        - setBody:
+            simple: >-
+              {"feed":${exchangeProperty.feedJson},"carriers":${exchangeProperty.shopCarriers},"countries":${exchangeProperty.shopCountries},"deliveries":${exchangeProperty.shopDeliveries}}
+        # Rows to remove: those whose (carrier, zone) the snapshot no longer
+        # names — restricted to carriers the snapshot manages, so a carrier the
+        # feed says nothing about keeps its pricing untouched. A feed row naming
+        # a carrier the shop does not have resolves to nothing and drops out,
+        # taking that carrier out of scope rather than pruning it blind.
+        - setBody:
+            jq: |
+              def rows($x; $k): if ($x|type) == "object" then ($x[$k] // []) else [] end;
+              (rows(.carriers; "carriers") | map({name: .name, id: (.id|tostring)})) as $carriers
+              | (rows(.countries; "countries") | map({iso: .iso_code, zone: (.id_zone|tostring)})) as $zones
+              | (rows(.deliveries; "deliveries")
+                 | map({id: (.id|tostring), carrier: (.id_carrier|tostring), zone: (.id_zone|tostring)})) as $current
+              | [ .feed[]
+                  | . as $row
+                  | ($carriers[] | select(.name == $row.carrier_name) | .id) as $carrier
+                  | ($zones[] | select(.iso == $row.country) | .zone) as $zone
+                  | {carrier: $carrier, zone: $zone} ] as $desired
+              | ($desired | map(.carrier) | unique) as $managed
+              | [ $current[]
+                  | select(.carrier as $c | $managed | index($c))
+                  | select(. as $cur | ($desired | any(.carrier == $cur.carrier and .zone == $cur.zone)) | not)
+                  | .id ]
+              | join(",")
+        - convertBodyTo:
+            type: java.lang.String
+        - choice:
+            when:
+              # Nothing to prune is the normal case, and an empty body would
+              # otherwise tokenize into one empty id and DELETE /deliveries/.
+              - simple: "${body} != ''"
+                steps:
+                  - log:
+                      message: "carriers: pruning delivery rows the feed no longer lists (${body})"
+                  - split:
+                      tokenize: ","
+                      steps:
+                        - toD: "{{shop.api}}/deliveries/${body}?httpMethod=DELETE&{{shop.auth}}"

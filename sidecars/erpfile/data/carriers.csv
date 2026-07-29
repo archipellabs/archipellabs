@@ -1,0 +1,4 @@
+carrier_id,carrier_code,carrier_name,active,country,price,delay_days
+8f3a1c56-2d41-4b90-9e77-1a2b3c4d5e6f,GROUND,TimberWorks Ground,1,US,5.00,3
+b7e2d904-5c18-4a3f-8d61-9f0e1a2b3c4d,XBORDER,TimberWorks Cross-Border,1,US,5.00,5
+b7e2d904-5c18-4a3f-8d61-9f0e1a2b3c4d,XBORDER,TimberWorks Cross-Border,1,CA,5.00,8

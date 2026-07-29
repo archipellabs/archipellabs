@@ -20,6 +20,11 @@ include:
   # The simulator stack — brings up only the activity database (simulatordb); the
   # simulator app itself is deferred and run locally (see the file's header).
   - path: docker-compose-simulator.yaml
+  # The integration layer (Apache Camel) — carries master data between systems.
+  - path: docker-compose-integration.yaml
+  # The ERP — system of record for master data. Currently a file drop on SFTP;
+  # the name is the role, not the implementation (cf. `tracking` = Matomo).
+  - path: docker-compose-erp.yaml
 
 services:
   # Shared reverse-proxy / TLS gateway. It fronts BOTH included stacks — the

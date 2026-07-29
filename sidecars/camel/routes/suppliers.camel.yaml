@@ -1,0 +1,100 @@
+# Suppliers — reconcile the shop's supplier list with the ERP's master data.
+#
+# First route that writes, and deliberately the simplest entity: a name and a
+# flag, so the file → shop path was proven before carriers had to add zones and
+# prices on top. The source is state, read in place, so this reconciles rather
+# than consumes — running it twice changes nothing the second time.
+#
+# KNOWN DEFECT: matching is by `name`, so renaming a supplier in the feed creates
+# a second one in the shop instead of updating the first. The feed carries a
+# technical `supplier_id` but PrestaShop has nowhere to store it — no reference,
+# no custom field. (`link_rewrite` is advertised by the schema and does not exist
+# as a column; filtering on it silently matches nothing, which produced six
+# suppliers from two runs of a three-row feed before it was caught.) The fix is a
+# cross-reference of our own — doc/agent-org-lab.md §4 — not a better field.
+# ── the source adapter: the only part a real ERP replaces ───────────────────
+# Same seam as carriers.camel.yaml, and for the same reason: the source changes
+# with the ERP, the reconciler with PrestaShop.
+- route:
+    id: suppliers-from-file
+    from:
+      uri: "{{feeds.uri}}"
+      parameters:
+        password: "{{env:FEEDS_PASSWORD}}"
+        fileName: suppliers.csv
+        delay: 3000
+        readLock: changed
+        # State, not a message: read in place, never moved. Which means it would
+        # be re-read forever without an idempotent key — on last-modified, so it
+        # fires once per real change and stays quiet in between.
+        noop: true
+        idempotent: true
+        idempotentKey: "${file:name}-${file:modified}"
+      steps:
+        - unmarshal:
+            csv:
+              useMaps: true
+        - to: "direct:suppliers-snapshot"
+
+# ── the reconciler: never knows where the snapshot came from ────────────────
+# Contract: the body is a list of rows keyed supplier_code, supplier_name, active.
+- route:
+    id: suppliers-reconcile
+    from:
+      uri: "direct:suppliers-snapshot"
+      steps:
+        - log:
+            message: "suppliers feed: ${body.size()} row(s)"
+        - split:
+            simple: "${body}"
+            steps:
+              # Row into headers first: the lookup below replaces the body.
+              - setHeader:
+                  name: code
+                  simple: "${body[supplier_code]}"
+              - setHeader:
+                  name: supplierName
+                  simple: "${body[supplier_name]}"
+              - setHeader:
+                  name: active
+                  simple: "${body[active]}"
+
+              # Brackets must reach PrestaShop literally — percent-encoded they
+              # are ignored, not rejected. CamelHttpQuery is sent verbatim.
+              - setHeader:
+                  name: CamelHttpQuery
+                  simple: "display=[id]&filter[name]=${header.supplierName}"
+              - setHeader:
+                  name: Output-Format
+                  constant: JSON
+              - to: "{{shop.api}}/suppliers?httpMethod=GET&{{shop.auth}}"
+              # Empty is a bare [], a match is {"suppliers":[…]}: the shape
+              # changes with the count, so the common case must be handled.
+              - setHeader:
+                  name: shopId
+                  jq: 'if type == "object" then (.suppliers[0].id // "") else "" end'
+
+              - choice:
+                  when:
+                    - simple: "${header.shopId} == ''"
+                      steps:
+                        - setBody:
+                            simple: >-
+                              <prestashop><supplier><name>${header.supplierName}</name><active>${header.active}</active></supplier></prestashop>
+                        - removeHeader:
+                            name: CamelHttpQuery
+                        - to: "{{shop.api}}/suppliers?httpMethod=POST&{{shop.auth}}"
+                        - log:
+                            message: "supplier created: ${header.supplierName} (${header.code})"
+                  otherwise:
+                    steps:
+                      # PATCH, not PUT: PUT is a full replace and blanks every
+                      # field omitted from the body. See carriers.camel.yaml.
+                      - setBody:
+                          simple: >-
+                            <prestashop><supplier><id>${header.shopId}</id><name>${header.supplierName}</name><active>${header.active}</active></supplier></prestashop>
+                      - removeHeader:
+                          name: CamelHttpQuery
+                      - toD: "{{shop.api}}/suppliers/${header.shopId}?httpMethod=PATCH&{{shop.auth}}"
+                      - log:
+                          message: "supplier updated: ${header.supplierName} (${header.code}) → id ${header.shopId}"

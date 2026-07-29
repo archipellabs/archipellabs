@@ -1,0 +1,54 @@
+# Integration — the company's ESB. Apache Camel carries master data between
+# TimberWorks' systems (ERP → storefront) the way a real integration layer does,
+# and records every change it applies so the trail can be queried later.
+#
+# Routes are CODE: authored in `sidecars/camel/routes` as Camel YAML DSL,
+# reviewed in pull requests, and mounted read-only here. The container runs them; it does not
+# own them. Nothing is designed in a UI.
+#
+# No top-level `networks:` here — the docker-compose.yaml entrypoint owns and
+# creates the shared network; this service attaches to it via the include.
+services:
+
+  # Apache Camel, run through its JBang CLI: no Maven project, no build step, no
+  # application to scaffold. `camel run` loads the YAML routes directly, which is
+  # what keeps a JVM component cheap to live with in an otherwise Python/PHP stack.
+  camel:
+    container_name: camel
+    image: apache/camel-jbang:4.18.0
+    # The image publishes linux/amd64 only. Pinned explicitly so an arm64 host
+    # emulates it on purpose (slower startup, works fine) instead of surfacing a
+    # confusing platform warning on every up.
+    platform: linux/amd64
+    restart: unless-stopped
+    # JBang creates a working directory at startup. The image leaves WORKDIR at /
+    # and runs as `ubuntu`, which cannot write there — without this the runtime
+    # still starts but logs "Failed to create working directory: /.camel-jbang".
+    working_dir: /tmp
+    # Same env pair as the provisioning sidecar: committed defaults, then the
+    # gitignored file with the real secrets layered on top.
+    env_file:
+      - ./config/prestashop/default.env
+      - path: ./config/prestashop/.env
+        required: false
+    environment:
+      # Where the shop actually *is* on the shared network. What it insists on
+      # being *called* is PS_DOMAIN, which arrives from the env_file above —
+      # `localhost` here, a real domain in the public workspace. PrestaShop
+      # redirects any request whose Host does not match PS_DOMAIN, so routes send
+      # it explicitly; deriving it from the shop's own install config is what
+      # keeps this correct in both workspaces without a second variable to drift.
+      SHOP_INTERNAL_HOST: prestashop
+      # The file-shaped ERP (docker-compose-erp.yaml). Demo credentials, same
+      # posture as the rest of the workspace.
+      FEEDS_HOST: erpfile
+      FEEDS_USER: feeds
+      FEEDS_PASSWORD: feeds
+    volumes:
+      - ../../sidecars/camel/routes:/routes:ro
+    # --source-dir loads every route in the directory, so adding a route is adding
+    # a file. --dev watches them and reloads on change, which suits routes that are
+    # edited (and generated) frequently; drop it outside a development workspace.
+    command: ["run", "--source-dir=/routes", "--dev"]
+    networks:
+      - archipellabs_default_net
