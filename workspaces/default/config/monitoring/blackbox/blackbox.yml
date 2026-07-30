@@ -15,6 +15,11 @@ modules:
     http:
       method: GET
       follow_redirects: true
+      # So the gateway's access log can tell monitoring traffic from customers.
+      # Without it the probes are just more requests, and the edge panels count
+      # the monitor as if it were a shopper.
+      headers:
+        User-Agent: archipellabs-probe
       preferred_ip_protocol: ip4
       tls_config:
         # The lab's certificate is self-signed. Verification would fail on every
@@ -32,6 +37,8 @@ modules:
       method: GET
       valid_status_codes: [401]
       follow_redirects: false
+      headers:
+        User-Agent: archipellabs-probe
       preferred_ip_protocol: ip4
       tls_config:
         insecure_skip_verify: true

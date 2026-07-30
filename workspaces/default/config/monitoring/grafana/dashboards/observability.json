@@ -25,7 +25,7 @@
     "archipellabs",
     "meta"
   ],
-  "description": "The monitoring, monitoring itself.\n\nIt exists because Alloy once crash-looped on an invalid flag and log collection stopped for minutes with no signal anywhere. A dead collector and a quiet one look identical \u2014 which is the worst failure an observability stack has, and the reason the first tile is Alloy.",
+  "description": "The monitoring, monitoring itself.\n\nIt exists because Alloy once crash-looped on an invalid flag and log collection stopped for minutes with no signal anywhere. A dead collector and a quiet one look identical \u2014 which is the worst failure an observability stack has, and the reason the first tile is Alloy.\n\nTiles use `\u2026 or vector(0)` so an ABSENT series reads as 0 and turns red. Metrics are pushed here by Alloy, and a push pipeline cannot report its own death \u2014 if the collector stops, series do not fall to zero, they vanish, and a bare query renders 'No data' next to green tiles.",
   "panels": [
     {
       "type": "stat",
@@ -75,7 +75,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "up{job=\"alloy\"}"
+          "expr": "up{job=\"alloy\"} or vector(0)"
         }
       ],
       "description": "If this is 0, nothing is being collected and every other board is lying by omission."
@@ -128,7 +128,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "up{job=\"loki\"}"
+          "expr": "up{job=\"loki\"} or vector(0)"
         }
       ]
     },
@@ -329,7 +329,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "prometheus_tsdb_head_series"
+          "expr": "prometheus_tsdb_head_series or vector(0)"
         }
       ],
       "description": "Cardinality. An unqualified `| json` in a LogQL panel shows up here as a step change."

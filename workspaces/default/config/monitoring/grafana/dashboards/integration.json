@@ -25,7 +25,7 @@
     "archipellabs",
     "integration"
   ],
-  "description": "The integration layer reporting on itself. Every metric is one Camel actually exposes via --observe: no JVM, and the timings are summaries rather than histograms, so durations are mean and max \u2014 never percentiles.\n\n'failed exchanges' is the panel that matters. It stays at zero WHILE a market goes dark, because the sync is not broken \u2014 it faithfully applied a bad instruction. Green here beside falling orders is the thesis.",
+  "description": "The integration layer reporting on itself. Every metric is one Camel actually exposes via --observe: no JVM, and the timings are summaries rather than histograms, so durations are mean and max \u2014 never percentiles.\n\n'failed exchanges' is the panel that matters. It stays at zero WHILE a market goes dark, because the sync is not broken \u2014 it faithfully applied a bad instruction. Green here beside falling orders is the thesis.\n\nTiles use `\u2026 or vector(0)` so an ABSENT series reads as 0 and turns red. Metrics are pushed here by Alloy, and a push pipeline cannot report its own death \u2014 if the collector stops, series do not fall to zero, they vanish, and a bare query renders 'No data' next to green tiles.",
   "panels": [
     {
       "type": "stat",
@@ -75,7 +75,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(camel_routes_running_routes)"
+          "expr": "sum(camel_routes_running_routes) or vector(0)"
         }
       ]
     },
@@ -127,7 +127,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(camel_exchanges_failed_total{eventType=\"context\"})"
+          "expr": "sum(camel_exchanges_failed_total{eventType=\"context\"}) or vector(0)"
         }
       ],
       "description": "Zero through the reference incident. That is the point, not a bug."

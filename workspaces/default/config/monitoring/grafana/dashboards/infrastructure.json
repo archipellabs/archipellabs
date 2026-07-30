@@ -25,7 +25,7 @@
     "archipellabs",
     "infrastructure"
   ],
-  "description": "No exporter containers. Alloy runs blackbox_exporter and mysqld_exporter in-process, and the edge is measured from the gateway's JSON access log rather than nginx stub_status \u2014 which offers connection counts and one request counter, but no status codes, no latency and no per-host split.\n\ncAdvisor was here and cannot work on Docker Desktop: it reports only the root cgroup, verified across six configurations.",
+  "description": "No exporter containers. Alloy runs blackbox_exporter and mysqld_exporter in-process, and the edge is measured from the gateway's JSON access log rather than nginx stub_status \u2014 which offers connection counts and one request counter, but no status codes, no latency and no per-host split.\n\ncAdvisor was here and cannot work on Docker Desktop: it reports only the root cgroup, verified across six configurations.\n\nTiles use `\u2026 or vector(0)` so an ABSENT series reads as 0 and turns red. Metrics are pushed here by Alloy, and a push pipeline cannot report its own death \u2014 if the collector stops, series do not fall to zero, they vanish, and a bare query renders 'No data' next to green tiles.",
   "panels": [
     {
       "type": "stat",
@@ -71,7 +71,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate({service=\"gateway\"} | json | __error__=\"\" [$__range]))"
+          "expr": "sum(rate({service=\"gateway\"} | json ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` [$__range]))"
         }
       ]
     },
@@ -123,7 +123,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({service=\"gateway\"} | json status=\"status\" | __error__=\"\" | status =~ \"5..\" [$__range]))"
+          "expr": "sum(count_over_time({service=\"gateway\"} | json status=\"status\", ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` | status =~ \"5..\" [$__range]))"
         }
       ]
     },
@@ -151,7 +151,7 @@
               },
               {
                 "color": "#fab219",
-                "value": 50
+                "value": 20
               }
             ]
           }
@@ -175,10 +175,10 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({service=\"gateway\"} | json status=\"status\" | __error__=\"\" | status =~ \"4..\" [$__range]))"
+          "expr": "sum(count_over_time({service=\"gateway\"} | json status=\"status\", ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` | status =~ \"4..\" [$__range]))"
         }
       ],
-      "description": "Not inherently bad \u2014 the API answers 401 to every unauthenticated probe by design."
+      "description": "Customer 4xx only \u2014 the uptime probe's own expected 401 on /api/ is excluded by user agent. It fires twice a minute, which put 116 of 127 4xx in the last hour into this tile and would have kept it amber forever for healthy behaviour."
     },
     {
       "type": "stat",
@@ -228,7 +228,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(mysql_up)"
+          "expr": "sum(mysql_up) or vector(0)"
         }
       ]
     },
@@ -377,7 +377,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status) (rate({service=\"gateway\"} | json status=\"status\" | __error__=\"\" [$__interval]))",
+          "expr": "sum by (status) (rate({service=\"gateway\"} | json status=\"status\", ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` [$__interval]))",
           "legendFormat": "{{status}}"
         }
       ],
@@ -425,12 +425,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "quantile_over_time(0.95, {service=\"gateway\"} | json duration=\"duration\" | __error__=\"\" | unwrap duration [$__interval])",
+          "expr": "quantile_over_time(0.95, {service=\"gateway\"} | json duration=\"duration\", ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` | unwrap duration [$__interval])",
           "legendFormat": "p95"
         },
         {
           "refId": "B",
-          "expr": "quantile_over_time(0.50, {service=\"gateway\"} | json duration=\"duration\" | __error__=\"\" | unwrap duration [$__interval])",
+          "expr": "quantile_over_time(0.50, {service=\"gateway\"} | json duration=\"duration\", ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` | unwrap duration [$__interval])",
           "legendFormat": "p50"
         }
       ],
@@ -488,7 +488,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (sim) (rate({service=\"gateway\"} | json sim=\"sim\" | __error__=\"\" [$__interval]))",
+              "expr": "sum by (sim) (rate({service=\"gateway\"} | json sim=\"sim\", ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` [$__interval]))",
               "legendFormat": "sim={{sim}}"
             }
           ],
@@ -539,7 +539,7 @@
           "targets": [
             {
               "refId": "A",
-              "expr": "topk(5, sum by (uri) (rate({service=\"gateway\"} | json uri=\"uri\" | __error__=\"\" [$__interval])))",
+              "expr": "topk(5, sum by (uri) (rate({service=\"gateway\"} | json uri=\"uri\", ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` [$__interval])))",
               "legendFormat": "{{uri}}"
             }
           ]

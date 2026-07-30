@@ -24,7 +24,7 @@
   "tags": [
     "archipellabs"
   ],
-  "description": "The one board to open first. Six numbers that should all be boring, and a timeline of what is up.\n\nDeliberately shallow: anything that needs a second glance has its own board, linked in the dropdown above. A landing page that tries to show everything shows nothing.",
+  "description": "The one board to open first. Six numbers that should all be boring, and a timeline of what is up.\n\nDeliberately shallow: anything that needs a second glance has its own board, linked in the dropdown above. A landing page that tries to show everything shows nothing.\n\nTiles use `\u2026 or vector(0)` so an ABSENT series reads as 0 and turns red. Metrics are pushed here by Alloy, and a push pipeline cannot report its own death \u2014 if the collector stops, series do not fall to zero, they vanish, and a bare query renders 'No data' next to green tiles.",
   "panels": [
     {
       "type": "stat",
@@ -78,7 +78,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(probe_success{probe!=\"\"})"
+          "expr": "sum(probe_success{probe!=\"\"}) or vector(0)"
         }
       ],
       "description": "Outside-in, through the gateway, as a user reaches them. The only check that fails when the whole chain fails."
@@ -183,7 +183,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(camel_exchanges_failed_total{eventType=\"context\"})"
+          "expr": "sum(camel_exchanges_failed_total{eventType=\"context\"}) or vector(0)"
         }
       ],
       "description": "Stays at zero through the reference incident \u2014 the sync is not broken, it faithfully applied a bad instruction."
@@ -236,7 +236,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({service=\"gateway\"} | json status=\"status\" | __error__=\"\" | status =~ \"5..\" [$__range]))"
+          "expr": "sum(count_over_time({service=\"gateway\"} | json status=\"status\", ua=\"ua\" | __error__=\"\" | ua !~ `archipellabs-probe.*|Blackbox Exporter.*` | status =~ \"5..\" [$__range]))"
         }
       ]
     },
