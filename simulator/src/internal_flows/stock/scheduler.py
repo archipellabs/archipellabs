@@ -10,16 +10,16 @@ import logging
 
 from runtime import Context, Service
 
-from src.config import settings
 from src.internal_flows.catalog.client import json_client, xml_client
 from src.internal_flows.stock.refill import refill_stock
+from src.services.configuration.service import configuration
 
 log = logging.getLogger("simulator.stock")
 
 service = Service("stock-refill")
 
 
-@service.every(settings.stock_check_interval)
+@service.every(configuration.get("stock_check_interval"))
 async def tick(ctx: Context) -> None:
     async with json_client() as json_http, xml_client() as xml_http:
         summary = await refill_stock(json_http, xml_http)

@@ -58,6 +58,10 @@ services:
     # uid 1001 rather than the image default 1000: other images in this stack
     # already run as 1000, and matching uids across unrelated services is how
     # bind-mount ownership bugs start.
+    # 2222, because 22 on the host is the host's own sshd. Loopback only — the
+    # feed is the company's master data and has no business on other interfaces.
+    ports:
+      - "127.0.0.1:2222:22"
     command: ["feeds:feeds:1001:1001:out", "agent:agent:1002:1002"]
     # data/ is the repository, read-only — the integration must not be able to
     # rewrite the company's master data as a side effect of reading it.

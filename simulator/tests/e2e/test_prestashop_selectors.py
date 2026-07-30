@@ -21,7 +21,7 @@ covered by the full journey test.
     uv run pytest tests/e2e/test_prestashop_selectors.py -s
 
 Requires a live shop with a populated catalog (same prerequisites as the other
-e2e tests). Defaults to headless; override with HEADLESS=false.
+e2e tests). Runs headless; set DEBUG_SHOW_BROWSER=true to watch it.
 """
 
 import os
@@ -57,7 +57,11 @@ from src.services.browser.service import browser_session
 pytestmark = pytest.mark.e2e
 
 BASE_URL = os.getenv("SHOP_BASE_URL", "https://shop.archipellabs.test")
-HEADLESS = os.getenv("HEADLESS", "true").strip().lower() in {"1", "true", "yes"}
+SHOW_BROWSER = os.getenv("DEBUG_SHOW_BROWSER", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
 CHECK_TIMEOUT_MS = 3_000
 GOTO_TIMEOUT_MS = 12_000
 
@@ -232,7 +236,7 @@ async def _run(page: Page, report: Report) -> None:
 
 async def test_prestashop_selectors():
     report = Report()
-    async with browser_session(headless=HEADLESS) as ctx:
+    async with browser_session(headless=not SHOW_BROWSER) as ctx:
         page = await ctx.new_page()
         await _run(page, report)
 

@@ -1,49 +1,74 @@
 # Simulator
 
 A load simulator for the PrestaShop storefront, built on
-[`archipellabs-runtime`](https://pypi.org/project/archipellabs-runtime/) — a
-producer/consumer runtime over Redis Streams. There is no HTTP server: the
-simulator is a runtime `App` started from the command line.
+[`archipellabs-runtime`](https://pypi.org/project/archipellabs-runtime/) 0.3 — a
+Redis Streams runtime with three verbs: `call` (send and wait for a result),
+`dispatch` (send to exactly one executant) and `emit` (fan out to every
+subscriber). There is no HTTP server: the simulator is a runtime `App` of
+`Service`s, started from the command line.
 
-Two external flows, decoupled through the `customer.arrival` Redis stream:
+Two **external flows** (`src/external_flows/`) simulate what happens to the
+company from outside, decoupled through the `customer.arrival` stream:
 
-- **`customer_arrivals`** (producer / `Scheduler`) — on every tick, computes the
+- **`customer_arrivals`** (producer, `scheduler.py`) — on every tick, computes the
   current traffic intensity, Poisson-samples arrivals, manages an in-memory pool
   of fresh customer identities, builds a website-agnostic business intent, and
-  emits a `customer.arrival` event. Returning visitors are a later-stage mechanic.
-- **`customer_journey`** (consumer / `Pool`) — a pool of workers backed by one
-  shared Chromium process; each event runs a Playwright state machine through the
-  storefront.
+  `dispatch`es one `customer.arrival` per arrival. `dispatch`, not `emit`:
+  driving the same simulated customer twice would place a duplicate order. Each
+  carries a `ttl` of a few ticks, so a backlog built up during an outage expires
+  instead of replaying an hour of traffic at once. Returning visitors are a
+  later-stage mechanic.
+- **`customer_journey`** (consumer, `pool.py`) — an action bounded by
+  `max_slots`, backed by one shared Chromium process; each arrival runs a
+  Playwright state machine through the storefront. The registration declares
+  `params=CustomerArrivalEvent`, so a malformed message is rejected by the
+  runtime before the handler runs and reported as a typed `ParamsInvalid`,
+  instead of being logged and dropped inside the handler.
 
-Two **internal flows** (`src/internal_flows/`) keep the shop's data in shape,
+Three **internal flows** (`src/internal_flows/`) keep the shop's data in shape,
 driving PrestaShop through its Webservice/Admin APIs — never the storefront:
 
-- **`catalog`** — a `sync` consumer (`pool.py`) that reconciles the local PIM
-  (`data/pim/`) into PrestaShop on a `catalog.sync` event (purely additive — it
-  never deletes), plus a `doctor` producer (`doctor.py`) that emits a full,
-  idempotent reconciliation on a timer. The full pass repairs field and association
-  drift as well as missing resources.
-- **`stock`** — a producer (`scheduler.py`) that tops tracked products back up
-  when their stock dips below a floor.
+- **`catalog`** (`service.py`) — one service holding both halves: a `catalog.sync`
+  action that reconciles the local PIM (`data/pim/`) into PrestaShop (purely
+  additive — it never deletes), and a `doctor` producer that `call`s it on a timer
+  and logs the summary that comes back. The full pass repairs field and
+  association drift as well as missing resources.
+- **`stock`** (`scheduler.py`) — tops tracked products back up when their stock
+  dips below a floor.
+- **`payments`** (`scheduler.py`) — settles the waiting bank wires; nothing else
+  moves an order out of "Awaiting bank wire payment".
 
-They follow the same role-named convention below and are toggled by the same
-`*_ENABLED` flags (see `src/config.py`).
+One **technical flow** (`src/technical_flows/`) acts on the simulator itself
+rather than on the company:
+
+- **`configuration`** (`actions.py`) — a `config.apply` action that changes a knob
+  on a running simulator, and `config.describe` that reports what is changeable.
+  A value goes to the settings table; a flow name flips the runtime's switch
+  registry.
+
+The distinction is not filing. A technical flow is **out of universe**: it is not
+something TimberWorks does, so it must never show up in the company's data, and
+nothing modelling the business imports from it. That is also why it is not a
+`services/` package — everything under `src/services/` is a library the flows
+call, while this is a mounted flow that nothing imports.
 
 ### Flow convention
 
-Each flow is a package under `src/external_flows/<name>/` with a single
-role-named entry module that exports the runtime component under a predictable
-symbol:
+Each flow is a package under `src/<kind>_flows/<name>/` with a single role-named
+entry module, and every one of them exports the runtime component as `service`:
 
-- a **producer** → `scheduler.py` exporting `scheduler` (a `Scheduler`);
-- a **consumer** → `pool.py` exporting `pool` (a `Pool`).
+| Entry module | Role |
+|---|---|
+| `scheduler.py` | a producer — work on a timer (`@service.every`) |
+| `pool.py` | a consumer whose lifespan owns an expensive shared resource |
+| `service.py` | one domain that both consumes and produces |
+| `actions.py` | a technical control surface |
 
-The module's header docstring states its role and topic
-(`<name> — producer|consumer (Scheduler|Pool) of Topic.X`). Event types are named
-once in `src/external_flows/topics.py` (`Topic`, a `StrEnum`): the producer
-`emit`s a `Topic`, the consumer binds the same `Topic` with
-`@pool.flow(consumes=...)` — they share only that name. `src/app.py` then includes
-each flow's `pool` / `scheduler` uniformly.
+The module's header docstring states its role and topic. Names are declared once
+per flow kind in `topics.py` (`Topic`, a `StrEnum`): a caller sends a `Topic`, the
+executant binds the same `Topic` with `@service.action(...)`, and they share only
+that name — never a reference. `src/app.py` then `include`s each flow's `service`
+uniformly.
 
 ## Setup
 
@@ -75,21 +100,61 @@ Start the simulator (producer + consumer in one process; Ctrl-C to stop):
 uv run python -m src.app
 ```
 
-It logs the topology at boot, then streams JSONL journey events on stdout. Config
-comes from `.env` (see `src/config.py`): `REDIS_URL`, `SHOP_BASE_URL`, the
-PrestaShop API credentials, `JOURNEY_SLOTS` (consumer concurrency), and
-`ARRIVAL_TIMEZONE` (the local clock used by the daily traffic curve).
+It logs the topology at boot, then streams JSONL journey events on stdout.
+
+## Configuration
+
+Every setting is read through one interface, whatever kind it is:
+
+```python
+from src.services.configuration.service import configuration
+
+configuration.get("shop_base_url")
+```
+
+Values resolve through three layers, first hit wins:
+
+1. **Dynamic** — a row in the activity database, for the keys in `TUNABLES`.
+   Changeable while the app runs.
+2. **Static** — the environment, via `.env` or a real variable. A restart.
+3. **Default** — the value shipped in `src/config.py`.
+
+`get` is synchronous and never does I/O, because configuration is read where no
+`await` can reach — `@service.every(...)` binds a schedule at import,
+`include(enabled=)` decides wiring before the loop exists. It answers from an
+in-process snapshot — warmed at boot by the two flows that have a lifespan
+(`customer_arrivals`, `customer_journey`) and reloaded behind a stale read, so a
+change made elsewhere lands within a minute.
+
+To change something on a running simulator, send it to the technical flow:
+
+```python
+from src.technical_flows.topics import Topic
+
+await ctx.call(Topic.CONFIG_APPLY, key="base_arrivals_per_minute", value=9)
+await ctx.call(Topic.CONFIG_APPLY, key="customer-arrivals", value=False)  # pause
+await ctx.call(Topic.CONFIG_APPLY, key="base_arrivals_per_minute")        # reset
+```
+
+A **value** is stored in the settings table and picked up by the next read. A
+**flow name** flips a runtime switch, which pauses consumption while the stream
+keeps filling, so resuming drains the backlog rather than losing it. The
+`*_ENABLED` variables are deliberately *not* changeable this way: they gate
+`App.include()`, which runs once at boot, so a service left out was never
+constructed and no switch reaches it.
 
 ### Delivery behavior
 
-`archipellabs-runtime` 0.2 acknowledges a message after its handler returns. It
-does not yet reclaim a message left pending by a crashed or failed handler. The
-journey flow treats browser-state and infrastructure failures as terminal,
-recorded observations and then acknowledges them; only a process interruption can
-leave an arrival pending. The catalog doctor emits a fresh periodic reconciliation,
-so catalog convergence does not depend on reclaim. Pending-message reclaim and
-duplicate-order protection must land together before customer-arrival delivery can
-be described as at-least-once.
+`archipellabs-runtime` 0.3 acknowledges a message once its handler has been
+run — including when the handler reported a failure, which travels back to the
+caller as a typed error rather than as a redelivery. A message whose deadline
+passed while it queued is dropped without executing. What is still missing is
+reclaim: a message left pending by a *crashed process* is not picked up by
+another. The journey flow therefore treats browser-state and infrastructure
+failures as terminal, recorded observations, and the catalog doctor re-runs a
+full reconciliation on a timer, so catalog convergence never depends on reclaim.
+Pending-message reclaim and duplicate-order protection must land together before
+customer-arrival delivery can be described as at-least-once.
 
 ## Development
 
@@ -99,20 +164,28 @@ Regenerate the PrestaShop API clients after an OpenAPI spec change:
 uv run python scripts/generate_prestashop_clients.py
 ```
 
-Tests come in three tiers by what they need to run:
+Tests come in four tiers by what they need to run:
 
 - `tests/unit/` — isolated units (fakes for collaborators), fast.
 - `tests/component/` — several real components wired in-process over a fake Redis
   (boundaries stubbed), still hermetic and fast.
 - `tests/e2e/` — hit live services (PrestaShop, the activity Postgres, a real
   browser); carry the `e2e` marker and are deselected by default.
+- `tests/scenarios/` — drive the whole stack and *mutate* it: edit the company's
+  master data, wait for the integration layer to reconcile, then judge the result
+  by whether a customer can still buy. Slow and stateful; each scenario repairs
+  what it broke and asserts the repair landed.
 
 The default lane runs unit + component (everything except `e2e`):
 
 ```sh
 uv run pytest -m "not e2e"     # what CI runs
 uv run pytest -m e2e           # the live-service tier (needs the stack up)
+uv run pytest                  # everything
 ```
+
+Set `DEBUG_SHOW_BROWSER=true` to watch a journey run instead of driving Chromium
+headless. It needs a display, so never set it in a container.
 
 Package marker files:
 

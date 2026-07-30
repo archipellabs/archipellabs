@@ -14,11 +14,11 @@ from typing import Any
 
 import httpx
 
-from src.config import settings
+from src.services.configuration.service import configuration
 
 log = logging.getLogger("simulator.catalog")
 
-LANG_ID = int(settings.prestashop_webservice_language_id)
+LANG_ID = int(configuration.get("prestashop_webservice_language_id"))
 _XML_DECL = '<?xml version="1.0" encoding="UTF-8"?>\n'
 
 

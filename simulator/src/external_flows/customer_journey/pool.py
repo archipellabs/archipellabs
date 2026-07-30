@@ -18,7 +18,6 @@ from typing import Any
 
 from runtime import Config, Context, Resources, Service
 
-from src.config import settings
 from src.external_flows.contracts import CustomerArrivalEvent
 from src.external_flows.customer_journey.adapter import journey_from_arrival
 from src.external_flows.customer_journey.devices import (
@@ -31,6 +30,7 @@ from src.external_flows.customer_journey.repository.journey_activity import (
 )
 from src.external_flows.topics import Topic
 from src.infrastructure.db import make_engine, make_sessionmaker
+from src.services.configuration.service import configuration
 
 log = logging.getLogger("simulator.customer_journey")
 
@@ -41,10 +41,16 @@ log = logging.getLogger("simulator.customer_journey")
 SIMULATOR_HEADER = {"X-Archipel-Simulator": "1"}
 
 
-def browser_launch_options(config: Config) -> dict[str, Any]:
-    """Translate pool config into the Chromium launch contract."""
-    args = ["--no-sandbox"] if config.get("browser_no_sandbox", False) else []
-    return {"headless": config.get("headless", True), "args": args}
+def browser_launch_options(*, show_browser: bool, no_sandbox: bool) -> dict[str, Any]:
+    """Translate the two browser settings into the Chromium launch contract.
+
+    The one place the polarity flips: the setting is positive and opt-in
+    (`DEBUG_SHOW_BROWSER`), Playwright's parameter is negative (`headless`).
+    """
+    return {
+        "headless": not show_browser,
+        "args": ["--no-sandbox"] if no_sandbox else [],
+    }
 
 
 def infrastructure_failure_summary(
@@ -75,19 +81,28 @@ def infrastructure_failure_summary(
 
 @asynccontextmanager
 async def browser_lifespan(config: Config) -> AsyncIterator[Resources]:
-    if not config.get("base_url"):
-        raise ValueError("customer-journey: 'base_url' is required in config")
+    # Warm the configuration snapshot before the first customer, so `fast` is read
+    # from the database rather than defaulted on the opening journeys.
+    await configuration.refresh()
+
+    if not configuration.get("shop_base_url"):
+        raise ValueError("customer-journey: SHOP_BASE_URL is required")
     # Imported lazily so the module can be inspected (topology, tests) without
     # Playwright installed.
     from playwright.async_api import async_playwright
 
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch(**browser_launch_options(config))
+    browser = await pw.chromium.launch(
+        **browser_launch_options(
+            show_browser=configuration.get("debug_show_browser"),
+            no_sandbox=configuration.get("browser_no_sandbox"),
+        )
+    )
 
     # Activity DB (chart data): opened once for the whole pool, like a database in a
     # FastAPI lifespan. Every journey run is recorded through this repository — it is
     # core infrastructure, not an optional add-on.
-    engine = make_engine(config["dsn"])
+    engine = make_engine(configuration.get("simulatordb_url"))
     activity_repository = JourneyActivityRepository(make_sessionmaker(engine))
     resources: Resources = {
         "browser": browser,
@@ -106,7 +121,9 @@ async def browser_lifespan(config: Config) -> AsyncIterator[Resources]:
 
 
 service = Service(
-    "customer-journey", max_slots=settings.journey_slots, lifespan=browser_lifespan
+    "customer-journey",
+    max_slots=configuration.get("journey_slots"),
+    lifespan=browser_lifespan,
 )
 
 
@@ -135,10 +152,12 @@ async def run_arrival(ctx: Context, arrival: CustomerArrivalEvent) -> None:
         await context.add_init_script(HIDE_CLIENT_HINTS_SCRIPT)
         summary = await run_customer_journey(
             context,
-            ctx.config["base_url"],
+            configuration.get("shop_base_url"),
             journey=journey,
             guest=arrival.intent.customer,
-            fast=ctx.config.get("fast", False),
+            # Read per journey, so a change applies to the next customer and
+            # nothing already in flight.
+            fast=configuration.get("fast"),
             flow_id=arrival.id,
         )
     except Exception as exc:

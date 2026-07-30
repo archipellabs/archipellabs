@@ -81,6 +81,32 @@ class IdentityPool:
         # Grows with the run; fine at v1 volumes (each /16 holds ~65k addresses).
         self._issued_ips: set[str] = set()
 
+    def set_market_mix(self, mix: Mapping[str, float]) -> None:
+        """Change the market weights in place, keeping every identity.
+
+        A new pool would be simpler and wrong: the personas are seeded and the
+        pool remembers which identities have been used, which is what makes a
+        returning visitor look like one. Rebuilding it on a settings change would
+        silently reset that, so only the weights move.
+        """
+        candidate = dict(mix)
+        unknown = sorted(set(candidate) - set(LOCATIONS))
+        if unknown:
+            raise ValueError(f"unknown market(s) {unknown}; known: {sorted(LOCATIONS)}")
+        if any(w < 0 for w in candidate.values()) or sum(candidate.values()) <= 0:
+            raise ValueError(f"market mix needs a positive total weight, got {mix}")
+
+        if candidate == dict(zip(self._markets, self._weights, strict=True)):
+            return
+
+        for country in candidate:
+            if country not in self._personas:
+                self._personas[country] = PersonaFactory(
+                    country=country, seed=self._rng.randint(0, 2**31 - 1)
+                )
+        self._markets = list(candidate)
+        self._weights = list(candidate.values())
+
     def pick(self) -> Identity:
         """Mint the next arrival's identity: a new customer on a unique envelope."""
         country = self._rng.choices(self._markets, weights=self._weights, k=1)[0]

@@ -20,6 +20,8 @@ from src.external_flows.customer_arrivals.scheduler import tick
 from src.external_flows.customer_journey import pool as pool_module
 from src.external_flows.customer_journey.pool import run_arrival
 from src.external_flows.topics import Topic
+from src.services.configuration.service import configuration
+from tests.conftest import use_overrides
 
 REGISTRATION = next(
     r for r in pool_module.service.consumers if r.name == Topic.CUSTOMER_ARRIVAL
@@ -47,11 +49,16 @@ class FakeActivityRepository:
     async def record(self, *, arrival, summary) -> None: ...
 
 
-def _rate(base: float) -> RateConfig:
-    return RateConfig(base_arrivals_per_minute=base, noise_min=1.0, noise_max=1.0)
+def _rate() -> RateConfig:
+    """The curve's shape only — the base rate is a tunable, read per tick."""
+    return RateConfig(noise_min=1.0, noise_max=1.0)
 
 
 async def test_arrival_flows_producer_to_consumer(monkeypatch):
+    # Both halves read the same process configuration, exactly as they do live.
+    await use_overrides(
+        base_arrivals_per_minute=100_000, max_arrivals_per_tick=5, fast=True
+    )
     broker = RedisBroker(FakeRedis(decode_responses=True))
     stream = REGISTRATION.stream
     await broker.ensure_group(stream, REGISTRATION.group, start=REGISTRATION.start)
@@ -61,11 +68,10 @@ async def test_arrival_flows_producer_to_consumer(monkeypatch):
     producer_ctx = RuntimeContext(
         broker,
         resources={
-            "rate": _rate(100_000),
+            "rate": _rate(),
             "identities": IdentityPool(rng=rng),
             "rng": rng,
         },
-        config={"tick_seconds": 5.0, "max_arrivals_per_tick": 5},
     )
     await tick(producer_ctx)
 
@@ -87,8 +93,10 @@ async def test_arrival_flows_producer_to_consumer(monkeypatch):
     browser = FakeBrowser()
     consumer_ctx = RuntimeContext(
         broker,
-        resources={"browser": browser, "activity_repository": FakeActivityRepository()},
-        config={"base_url": "https://shop.test", "fast": True},
+        resources={
+            "browser": browser,
+            "activity_repository": FakeActivityRepository(),
+        },
     )
 
     msgs = await broker.claim(
@@ -105,7 +113,7 @@ async def test_arrival_flows_producer_to_consumer(monkeypatch):
 
     assert len(ran) == len(msgs)
     assert browser.opened == len(msgs)
-    assert all(r["base_url"] == "https://shop.test" for r in ran)
+    assert all(r["base_url"] == configuration.get("shop_base_url") for r in ran)
     # The consumer traces each run under the arrival id (greppable end-to-end).
     assert all(r["flow_id"].startswith("a_") for r in ran)
 

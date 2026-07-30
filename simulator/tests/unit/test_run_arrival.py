@@ -17,6 +17,7 @@ from src.external_flows.contracts import (
 from src.external_flows.customer_journey import pool as pool_module
 from src.external_flows.customer_journey.pool import browser_launch_options, run_arrival
 from src.external_flows.topics import Topic
+from src.services.configuration.service import configuration
 
 
 class FakeBrowserContext:
@@ -70,17 +71,26 @@ class FakeCtx:
 
 
 def test_browser_launch_options_honor_container_sandbox_setting():
-    assert browser_launch_options({"headless": True, "browser_no_sandbox": True}) == {
+    assert browser_launch_options(show_browser=False, no_sandbox=True) == {
         "headless": True,
         "args": ["--no-sandbox"],
     }
 
 
 def test_browser_launch_options_keep_sandbox_by_default():
-    assert browser_launch_options({"headless": False}) == {
-        "headless": False,
+    assert browser_launch_options(show_browser=False, no_sandbox=False) == {
+        "headless": True,
         "args": [],
     }
+
+
+def test_browser_launch_options_show_browser_inverts_headless():
+    # The setting is opt-in and positive, Playwright's parameter is negative.
+    # Getting this backwards launches a headed browser in a container, where it
+    # cannot start at all.
+    assert (
+        browser_launch_options(show_browser=True, no_sandbox=False)["headless"] is False
+    )
 
 
 def _valid_event(
@@ -124,13 +134,13 @@ async def test_run_arrival_runs_journey_and_closes_context(monkeypatch):
 
     monkeypatch.setattr(pool_module, "run_customer_journey", fake_journey)
     browser = FakeBrowser()
-    ctx = FakeCtx({"browser": browser}, {"base_url": "https://shop.test", "fast": True})
+    ctx = FakeCtx({"browser": browser})
 
     event = _valid_event(n_products=1)
     await run_arrival(ctx, event)
 
     assert captured["journey"] == "guest_checkout"
-    assert captured["base_url"] == "https://shop.test"
+    assert captured["base_url"] == configuration.get("shop_base_url")
     assert captured["guest"].email == "a.b@example.com"
     assert captured["flow_id"] == event.id  # consumer traces under the arrival id
     assert browser.contexts and browser.contexts[0].closed is True
@@ -143,7 +153,7 @@ async def test_run_arrival_realizes_the_visitor_envelope(monkeypatch):
     browser = FakeBrowser()
     # No "devices" resource (as in these fakes): the descriptor is skipped but
     # the network identity must still reach the context.
-    ctx = FakeCtx({"browser": browser}, {"base_url": "https://shop.test"})
+    ctx = FakeCtx({"browser": browser})
 
     visitor = VisitorEnvelope(
         device="iphone",
@@ -165,7 +175,7 @@ async def test_run_arrival_without_visitor_still_marks_simulated_traffic(monkeyp
 
     monkeypatch.setattr(pool_module, "run_customer_journey", fake_journey)
     browser = FakeBrowser()
-    ctx = FakeCtx({"browser": browser}, {"base_url": "https://shop.test"})
+    ctx = FakeCtx({"browser": browser})
 
     await run_arrival(ctx, _valid_event())
 
@@ -189,7 +199,6 @@ async def test_run_arrival_records_activity(monkeypatch):
     repository = FakeRepository()
     ctx = FakeCtx(
         {"browser": browser, "activity_repository": repository},
-        {"base_url": "https://shop.test"},
     )
 
     event = _valid_event()
@@ -206,7 +215,6 @@ async def test_run_arrival_records_and_acknowledges_browser_setup_failure():
     repository = FakeRepository()
     ctx = FakeCtx(
         {"browser": UnavailableBrowser(), "activity_repository": repository},
-        {"base_url": "https://shop.test"},
     )
 
     event = _valid_event()

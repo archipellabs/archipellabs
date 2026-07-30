@@ -1,25 +1,25 @@
 """JourneyActivityRepository against a live Postgres (marker: e2e).
 
 Needs `simulatordb` up and `uv run alembic upgrade head` applied; the DSN comes
-from settings.simulatordb_url. Shared builders live in tests/conftest.py.
+from the configuration service. Shared builders live in tests/conftest.py.
 Run: `uv run pytest -m e2e -k activity_db`.
 """
 
 import pytest
 from sqlalchemy import delete, select
 
-from src.config import settings
 from src.external_flows.customer_journey.models.journey_activity import JourneyActivity
 from src.external_flows.customer_journey.repository.journey_activity import (
     JourneyActivityRepository,
 )
 from src.infrastructure.db import make_engine, make_sessionmaker
+from src.services.configuration.service import configuration
 
 pytestmark = pytest.mark.e2e
 
 
 async def test_record_and_upsert_idempotent(make_arrival, make_summary):
-    engine = make_engine(settings.simulatordb_url)
+    engine = make_engine(configuration.get("simulatordb_url"))
     sessionmaker = make_sessionmaker(engine)
     repository = JourneyActivityRepository(sessionmaker)
     arrival = make_arrival()  # random id → isolated
@@ -59,7 +59,7 @@ async def test_record_and_upsert_idempotent(make_arrival, make_summary):
 
 
 async def test_verify_ready_passes_against_migrated_db():
-    engine = make_engine(settings.simulatordb_url)
+    engine = make_engine(configuration.get("simulatordb_url"))
     repository = JourneyActivityRepository(make_sessionmaker(engine))
     try:
         # journey_activity exists (migrations applied) → the probe succeeds.

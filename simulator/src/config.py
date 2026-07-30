@@ -51,7 +51,12 @@ class Settings(BaseSettings):
 
     # customer_journey consumer (browser pool)
     journey_slots: int = 4
-    headless: bool = True
+    debug_show_browser: bool = False
+    """Watch a simulated customer shop, instead of running Chromium headless.
+
+    A debugging aid, off by default and named for it: a visible browser needs a
+    display, so leaving it on is how a container gets a stack that runs fine
+    locally and cannot launch at all in the compose stack."""
     fast: bool = False
     browser_no_sandbox: bool = False  # containers need Chromium's --no-sandbox
 

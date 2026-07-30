@@ -8,16 +8,16 @@ import logging
 
 from runtime import Context, Service
 
-from src.config import settings
 from src.internal_flows.catalog.client import json_client, xml_client
 from src.internal_flows.payments.accept import accept_bank_wire_payments
+from src.services.configuration.service import configuration
 
 log = logging.getLogger("simulator.payments")
 
 service = Service("payment-settlement")
 
 
-@service.every(settings.payment_check_interval)
+@service.every(configuration.get("payment_check_interval"))
 async def tick(ctx: Context) -> None:
     async with json_client() as json_http, xml_client() as xml_http:
         summary = await accept_bank_wire_payments(json_http, xml_http)

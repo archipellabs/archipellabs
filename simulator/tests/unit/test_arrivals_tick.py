@@ -14,15 +14,15 @@ from src.external_flows.customer_arrivals.identity_pool import IdentityPool
 from src.external_flows.customer_arrivals.rate import RateConfig
 from src.external_flows.customer_arrivals.scheduler import tick
 from src.external_flows.topics import Topic
+from tests.conftest import use_overrides
 
 # Far above any curve point, so the per-tick cap always clamps the count.
 HUGE_BASE = 100_000
 
 
 class FakeContext:
-    def __init__(self, resources: dict, config: dict) -> None:
+    def __init__(self, resources: dict) -> None:
         self.resources = resources
-        self.config = config
         self.emitted: list[tuple[str, dict]] = []
         self.ttls: list[str | float | None] = []
 
@@ -32,24 +32,21 @@ class FakeContext:
         return "task-id"
 
 
-def _resources(*, base: float, seed: int = 7) -> dict:
+def _resources(seed: int = 7) -> dict:
     # One shared RNG, mirroring the lifespan: the pool and the tick draw from it.
+    # The lifespan's RateConfig carries only the curve's shape — the base rate is
+    # a tunable the tick reads from the configuration each pass.
     rng = random.Random(seed)
     return {
-        "rate": RateConfig(base_arrivals_per_minute=base, noise_min=1.0, noise_max=1.0),
+        "rate": RateConfig(noise_min=1.0, noise_max=1.0),
         "identities": IdentityPool(rng=rng),
         "rng": rng,
     }
 
 
-def _config(**overrides) -> dict:
-    base = {"tick_seconds": 5.0}
-    base.update(overrides)
-    return base
-
-
 async def test_tick_emits_validatable_customer_arrivals():
-    ctx = FakeContext(_resources(base=HUGE_BASE), _config(max_arrivals_per_tick=5))
+    await use_overrides(base_arrivals_per_minute=HUGE_BASE, max_arrivals_per_tick=5)
+    ctx = FakeContext(_resources())
 
     await tick(ctx)
 
@@ -62,7 +59,8 @@ async def test_tick_emits_validatable_customer_arrivals():
 
 
 async def test_tick_emits_nothing_at_zero_rate():
-    ctx = FakeContext(_resources(base=0), _config())
+    await use_overrides(base_arrivals_per_minute=0)
+    ctx = FakeContext(_resources())
 
     await tick(ctx)
 
@@ -70,7 +68,8 @@ async def test_tick_emits_nothing_at_zero_rate():
 
 
 async def test_tick_respects_max_arrivals_per_tick():
-    ctx = FakeContext(_resources(base=HUGE_BASE), _config(max_arrivals_per_tick=3))
+    await use_overrides(base_arrivals_per_minute=HUGE_BASE, max_arrivals_per_tick=3)
+    ctx = FakeContext(_resources())
 
     await tick(ctx)
 
@@ -80,7 +79,8 @@ async def test_tick_respects_max_arrivals_per_tick():
 async def test_every_arrival_is_a_fresh_unique_visitor():
     # Each arrival mints a new identity: distinct customers on distinct IPs, so
     # every emission is a distinct visitor to the tracker.
-    ctx = FakeContext(_resources(base=HUGE_BASE), _config(max_arrivals_per_tick=10))
+    await use_overrides(base_arrivals_per_minute=HUGE_BASE, max_arrivals_per_tick=10)
+    ctx = FakeContext(_resources())
 
     await tick(ctx)
 

@@ -17,6 +17,7 @@ from src.external_flows.customer_journey.models import (  # noqa: F401
     journey_activity,
 )
 from src.infrastructure.db import Base
+from src.services.configuration.models import SimulatorSetting  # noqa: F401
 
 config = context.config
 # Configure global logging only for the standalone `alembic` CLI. Embedded at app

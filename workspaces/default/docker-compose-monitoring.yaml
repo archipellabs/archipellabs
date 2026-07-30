@@ -59,6 +59,11 @@ services:
     image: grafana/loki:3.3.2
     restart: unless-stopped
     command: ["-config.file=/etc/loki/config.yaml"]
+    # Bound to loopback, not 0.0.0.0: Loki has no auth of its own, and this is
+    # only here so an agent can be developed on the host before it is
+    # containerised. Inside the network it is reached as loki:3100 either way.
+    ports:
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./config/monitoring/loki/config.yaml:/etc/loki/config.yaml:ro
       - loki:/loki

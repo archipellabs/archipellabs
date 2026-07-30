@@ -10,17 +10,19 @@ import base64
 
 import httpx
 
-from src.config import settings
+from src.services.configuration.service import configuration
 
 
 def _basic_auth() -> str:
-    token = base64.b64encode(f"{settings.prestashop_webservice_api_key}:".encode())
+    token = base64.b64encode(
+        f"{configuration.get('prestashop_webservice_api_key')}:".encode()
+    )
     return f"Basic {token.decode()}"
 
 
 def _client(extra_headers: dict[str, str]) -> httpx.AsyncClient:
     return httpx.AsyncClient(
-        base_url=settings.prestashop_webservice_url,
+        base_url=configuration.get("prestashop_webservice_url"),
         verify=False,
         headers={"Authorization": _basic_auth(), **extra_headers},
     )

@@ -66,29 +66,34 @@ class CheckoutAddressState:
             pass
 
         if state_visible:
-            options = [
-                (
-                    await option.get_attribute("value"),
-                    (await option.inner_text()).strip(),
+            # Select by label and let Playwright wait for the option to exist.
+            #
+            # Enumerating the options first raced the shop: PrestaShop rebuilds
+            # this list by AJAX when the country changes — 50 US states become 13
+            # Canadian provinces — so handles taken from the old list detach
+            # mid-read and `get_attribute` waits out its whole timeout. It failed
+            # only for Canada, because only Canada shrinks the list, and it took
+            # every Canadian journey down with it: 0% conversion in one market
+            # while the other was fine, with no error anywhere but here.
+            try:
+                await state_select.first.select_option(
+                    label=guest.state, timeout=session.default_timeout_ms
                 )
-                for option in await state_select.locator(
+                session.log.emit("checkout_state_selected", state=guest.state)
+            except Exception:
+                # The shop does not offer that region. Take the first real option
+                # so the journey continues, but say so — falling back silently
+                # would put every customer in one region.
+                options = await state_select.locator(
                     "option[value]:not([value=''])"
                 ).all()
-            ]
-
-            # The customer's own region, matched on the label the shop renders.
-            # Falling back to the first option would put every customer in one
-            # region, so a miss is worth a signal rather than a silent guess.
-            chosen = next((opt for opt in options if opt[1] == guest.state), None)
-            if chosen is None:
-                chosen = options[0] if options else None
-                session.log.emit("checkout_state_fallback", wanted=guest.state)
-
-            if chosen is not None:
-                await state_select.first.select_option(value=chosen[0])
-                session.log.emit("checkout_state_selected", state=chosen[1])
-            else:
-                session.log.emit("checkout_state_unavailable")
+                if options:
+                    await state_select.first.select_option(
+                        value=await options[0].get_attribute("value")
+                    )
+                    session.log.emit("checkout_state_fallback", wanted=guest.state)
+                else:
+                    session.log.emit("checkout_state_unavailable")
 
         session.log.emit(
             "checkout_step_completed",

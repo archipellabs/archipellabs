@@ -31,7 +31,11 @@ from tests.scenarios.conftest import delivery_rows, until_serving, zone_of
 pytestmark = [pytest.mark.scenario, pytest.mark.e2e]
 
 BASE_URL = os.getenv("SHOP_BASE_URL", "https://shop.archipellabs.test")
-HEADLESS = os.getenv("HEADLESS", "true").strip().lower() in {"1", "true", "yes"}
+SHOW_BROWSER = os.getenv("DEBUG_SHOW_BROWSER", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
 FAST = os.getenv("FAST", "true").strip().lower() in {"1", "true", "yes"}
 
 CROSS_BORDER = "TimberWorks Cross-Border"
@@ -46,7 +50,7 @@ b7e2d904-5c18-4a3f-8d61-9f0e1a2b3c4d,XBORDER,TimberWorks Cross-Border,1,US,5.00,
 
 async def buys(country: str) -> dict:
     """Send one customer from `country` through checkout and report what happened."""
-    async with browser_session(headless=HEADLESS) as ctx:
+    async with browser_session(headless=not SHOW_BROWSER) as ctx:
         return await run_customer_journey(
             ctx,
             BASE_URL,

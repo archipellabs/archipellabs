@@ -9,8 +9,8 @@ marker:
 Override via env vars:
 
     SHOP_BASE_URL=https://staging.example.com uv run pytest
-    HEADLESS=false uv run pytest      # show the browser
-    FAST=false   uv run pytest        # keep realistic think-time pauses
+    DEBUG_SHOW_BROWSER=false uv run pytest  # this module watches by default
+    FAST=false   uv run pytest              # keep realistic think-time pauses
 """
 
 import os
@@ -29,7 +29,7 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 BASE_URL = os.getenv("SHOP_BASE_URL", "https://shop.archipellabs.test")
-HEADLESS = _env_bool("HEADLESS", False)
+SHOW_BROWSER = _env_bool("DEBUG_SHOW_BROWSER", True)
 FAST = _env_bool("FAST", True)
 
 
@@ -62,7 +62,7 @@ async def test_guest_checkout_creates_order(country):
     """
     guest = generate_customer_profile(country=country)
 
-    async with browser_session(headless=HEADLESS) as ctx:
+    async with browser_session(headless=not SHOW_BROWSER) as ctx:
         result = await run_customer_journey(
             ctx,
             BASE_URL,
@@ -114,7 +114,7 @@ async def test_guest_checkout_creates_order(country):
 
 
 async def test_add_to_cart_abandon_emits_session_abandoned():
-    async with browser_session(headless=HEADLESS) as ctx:
+    async with browser_session(headless=not SHOW_BROWSER) as ctx:
         result = await run_customer_journey(
             ctx,
             BASE_URL,
@@ -138,7 +138,7 @@ async def test_add_to_cart_abandon_emits_session_abandoned():
 
 
 async def test_multi_item_checkout_creates_order_with_two_items():
-    async with browser_session(headless=HEADLESS) as ctx:
+    async with browser_session(headless=not SHOW_BROWSER) as ctx:
         result = await run_customer_journey(
             ctx,
             BASE_URL,

@@ -24,12 +24,12 @@ from typing import Any
 import httpx
 from runtime import Config, Context, Params, Resources, Service
 
-from src.config import settings
 from src.internal_flows.catalog import prestashop as ps
 from src.internal_flows.catalog import sync as catalog_sync
 from src.internal_flows.catalog.client import json_client, xml_client
 from src.internal_flows.catalog.sync import HOME_CATEGORY_ID, load_pim
 from src.internal_flows.topics import Topic
+from src.services.configuration.service import configuration
 
 log = logging.getLogger("simulator.catalog")
 
@@ -85,9 +85,11 @@ async def doctor(ctx: Context) -> None:
 
 # Registered imperatively so the doctor keeps its own kill-switch while living in
 # the same service as the action it drives.
-if settings.catalog_doctor_enabled:
+if configuration.get("catalog_doctor_enabled"):
     service.register_every(
-        doctor, interval=settings.catalog_doctor_interval, id="catalog-doctor"
+        doctor,
+        interval=configuration.get("catalog_doctor_interval"),
+        id="catalog-doctor",
     )
 
 
