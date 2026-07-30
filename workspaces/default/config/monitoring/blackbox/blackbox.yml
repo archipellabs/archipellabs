@@ -1,0 +1,42 @@
+# Probe definitions for blackbox_exporter, which Alloy runs in-process.
+#
+# This is the uptime check — "is the service answering?" — declared in a file
+# rather than clicked into a UI. That is the whole reason it is here instead of
+# Uptime Kuma: the stack is torn down and rebuilt from zero volumes routinely, and
+# monitors that live in a tool's SQLite volume would need re-creating by hand every
+# time. These survive `docker compose down -v` because they are code.
+modules:
+  # Follows redirects, so Grafana's 302 to /login and the apex's 301 to the portal
+  # both count as healthy — what is being tested is "does a user reach a page",
+  # not "does the first response have a 200".
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      follow_redirects: true
+      preferred_ip_protocol: ip4
+      tls_config:
+        # The lab's certificate is self-signed. Verification would fail on every
+        # probe and measure nothing but that fact.
+        insecure_skip_verify: true
+
+  # The shop's API answers 401 to an unauthenticated request, and that IS its
+  # healthy response — it proves the endpoint is serving and still enforcing auth.
+  # Treating 401 as failure would report the API down whenever it is working
+  # correctly; treating 200 as valid too would hide a broken key.
+  http_api_401:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      valid_status_codes: [401]
+      follow_redirects: false
+      preferred_ip_protocol: ip4
+      tls_config:
+        insecure_skip_verify: true
+
+  # For the things behind the gateway that speak no HTTP.
+  tcp_connect:
+    prober: tcp
+    timeout: 5s

@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     catalog_doctor_enabled: bool = True
 
     # stock refill flow: how often to top up tracked products (runtime duration)
-    stock_check_interval: str = "5m"
+    stock_check_interval: str = "1m"
     # payment settlement: how often to accept the waiting bank wires. Nothing else
     # ever moves an order out of "Awaiting bank wire payment", so without this the
     # shop takes orders that are never paid.

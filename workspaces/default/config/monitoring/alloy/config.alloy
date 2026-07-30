@@ -55,3 +55,204 @@ loki.write "default" {
     url = "http://loki:3100/loki/api/v1/push"
   }
 }
+
+// ── Metrics ─────────────────────────────────────────────────────────────────
+//
+// Alloy collects metrics as well as logs, which is why there is no longer an
+// exporter container per database. `prometheus.exporter.mysql` is the same
+// mysqld_exporter code running in-process, so two databases cost two config
+// blocks instead of two containers — and one collector means one config file to
+// reason about instead of three.
+//
+// Everything is scraped here and remote-written to Prometheus, which is reduced
+// to storage. Prometheus needs --web.enable-remote-write-receiver for that.
+//
+// The COMPANY's databases only. The simulator's Postgres is absent for the same
+// reason its logs are: it is the instrument, and it knows the answer
+// (doc/agent-org-lab.md §4).
+
+// `slave_status` is disabled on both: it issues SHOW SLAVE STATUS, which MySQL 9
+// removed in favour of SHOW REPLICA STATUS. Left on, it fails every scrape
+// interval and fills the collector's log with a syntax error — for a replication
+// metric neither of these single-node databases has.
+prometheus.exporter.mysql "prestashopdb" {
+  data_source_name   = "root:" + sys.env("PRESTASHOPDB_PASSWORD") + "@(prestashopdb:3306)/"
+  disable_collectors = ["slave_status"]
+}
+
+prometheus.exporter.mysql "matomodb" {
+  data_source_name   = "root:" + sys.env("MATOMODB_PASSWORD") + "@(matomodb:3306)/"
+  disable_collectors = ["slave_status"]
+}
+
+// A stable `job` label per database, so a panel can say which one it is.
+discovery.relabel "prestashopdb" {
+  targets = prometheus.exporter.mysql.prestashopdb.targets
+  rule {
+    target_label = "job"
+    replacement  = "prestashopdb"
+  }
+}
+
+discovery.relabel "matomodb" {
+  targets = prometheus.exporter.mysql.matomodb.targets
+  rule {
+    target_label = "job"
+    replacement  = "matomodb"
+  }
+}
+
+prometheus.scrape "databases" {
+  targets         = array.concat(discovery.relabel.prestashopdb.output, discovery.relabel.matomodb.output)
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.store.receiver]
+}
+
+// Camel's own metrics: routes running, exchanges succeeded and — the one that
+// matters — exchanges FAILED, which stays at zero while a market goes dark.
+prometheus.scrape "camel" {
+  targets = [{
+    __address__ = "camel:8080",
+    job         = "camel",
+  }]
+  metrics_path    = "/observe/metrics"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.store.receiver]
+}
+
+// ── Uptime ──────────────────────────────────────────────────────────────────
+//
+// blackbox_exporter, in-process, probing the services as a user reaches them:
+// through the gateway, by hostname, over TLS. Probing from inside the compose
+// network works because the gateway carries those names as aliases, so this
+// measures the same path a browser takes.
+//
+// What it gives that nothing else here does: an outside-in answer. Camel can
+// report every route running while the storefront returns 500, and the databases
+// can be up while the gateway cannot reach them. probe_success is the only metric
+// that fails when the whole chain fails.
+prometheus.exporter.blackbox "services" {
+  config_file = "/etc/alloy/blackbox.yml"
+
+  target {
+    name    = "storefront"
+    address = "https://shop.archipellabs.test/"
+    module  = "http_2xx"
+  }
+
+  target {
+    name    = "analytics"
+    address = "https://tracking.archipellabs.test/"
+    module  = "http_2xx"
+  }
+
+  target {
+    name    = "portal"
+    address = "https://portal.archipellabs.test/"
+    module  = "http_2xx"
+  }
+
+  target {
+    name    = "grafana"
+    address = "https://grafana.archipellabs.test/"
+    module  = "http_2xx"
+  }
+
+  // The shop's API specifically, not just its home page: the integration layer
+  // and the agent both depend on it, and it can break while the storefront is
+  // perfectly healthy.
+  target {
+    name    = "shop-api"
+    address = "https://shop.archipellabs.test/api/"
+    module  = "http_api_401"
+  }
+
+  // The ERP is SFTP — no HTTP to speak of, so this only asks whether the port is
+  // open, which is exactly what "is the drop reachable" means.
+  target {
+    name    = "erp-sftp"
+    address = "erpfile:22"
+    module  = "tcp_connect"
+  }
+}
+
+// Without this every probe arrives labelled only with Alloy's own address, so six
+// series are indistinguishable. `prometheus.scrape` sets `instance` from
+// `__address__` — which is Alloy for all of them — so the target's identity has to
+// be copied somewhere else first.
+discovery.relabel "uptime" {
+  targets = prometheus.exporter.blackbox.services.targets
+
+  // Alloy already names each probe in `job` as integrations/blackbox/<name>.
+  // Keep the address for detail, and lift the bare name into `probe` so a legend
+  // reads "storefront" rather than a full URL or a namespaced job path.
+  rule {
+    source_labels = ["__param_target"]
+    target_label  = "target"
+  }
+
+  rule {
+    source_labels = ["job"]
+    regex         = "integrations/blackbox/(.*)"
+    target_label  = "probe"
+    replacement   = "$1"
+  }
+}
+
+prometheus.scrape "uptime" {
+  targets         = discovery.relabel.uptime.output
+  scrape_interval = "30s"
+  forward_to      = [prometheus.remote_write.store.receiver]
+}
+
+// ── Host resources ──────────────────────────────────────────────────────────
+//
+// The stack had NO resource metrics at all after cAdvisor was removed, and that
+// cost real debugging time: Camel burning 58% of a core, emulated, was found with
+// `docker stats` because nothing here could see it.
+//
+// This is VM-level, not per-container — the honest limit of what is obtainable on
+// Docker Desktop. It answers "is the machine starved, is the disk filling", which
+// is most of what the missing panels were for. Per-container attribution needs a
+// Docker-API exporter and is a separate decision.
+prometheus.exporter.unix "host" {
+  set_collectors = ["cpu", "meminfo", "loadavg", "filesystem", "diskstats", "netdev"]
+
+  filesystem {
+    // Container overlay mounts are noise; the volumes live under /
+    mount_points_exclude = "^/(dev|proc|sys|run|var/lib/docker/.+)($|/)"
+    fs_types_exclude     = "^(autofs|binfmt_misc|cgroup.*|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|nsfs|overlay|proc|procfs|pstore|securityfs|sysfs|tracefs)$"
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = prometheus.exporter.unix.host.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.remote_write.store.receiver]
+}
+
+// ── The monitoring, monitoring itself ───────────────────────────────────────
+//
+// Not vanity. Alloy crash-looped on an invalid flag earlier and log collection
+// stopped for minutes with NO signal anywhere — a dead collector and a quiet one
+// look identical, which is the worst failure mode an observability stack has. If
+// `up{job="alloy"}` had existed it would have been obvious immediately.
+//
+// 60s because these four expose thousands of series between them and none of it
+// changes fast.
+prometheus.scrape "observability" {
+  targets = [
+    {__address__ = "localhost:12345", job = "alloy"},
+    {__address__ = "loki:3100", job = "loki"},
+    {__address__ = "prometheus:9090", job = "prometheus-self"},
+    {__address__ = "grafana:3000", job = "grafana"},
+  ]
+  scrape_interval = "60s"
+  forward_to      = [prometheus.remote_write.store.receiver]
+}
+
+prometheus.remote_write "store" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}

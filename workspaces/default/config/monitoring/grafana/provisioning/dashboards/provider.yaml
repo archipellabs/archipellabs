@@ -1,0 +1,22 @@
+# Dashboards as code — provisioned at boot from files, never clicked into being.
+#
+# The JSON lives in a DIFFERENT directory from this file on purpose: Grafana reads
+# every file under `path` as a dashboard, so a provider yaml sitting there would be
+# parsed as one and fail.
+#
+# allowUiUpdates lets you edit a panel in the browser to try something out; the
+# file still wins on restart, so an experiment worth keeping has to be exported
+# back into git.
+apiVersion: 1
+
+providers:
+  - name: archipellabs
+    orgId: 1
+    folder: TimberWorks
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -33,10 +33,10 @@ services:
     networks:
       - archipellabs_default_net
 
-  # The simulator portal: analytics + cartography over the activity DB. One image
-  # (portal/Dockerfile) where FastAPI serves both its API and the built React SPA at
-  # the root. The gateway exposes it on its own TLS port, https://localhost:8443
-  # (config/gateway/nginx.conf) — a subdomain in production.
+  # The simulator's frontend: analytics + cartography over the activity DB. One
+  # image (portal/Dockerfile) where FastAPI serves both its API and the built React
+  # SPA at the root, so the gateway proxies it with no context path at
+  # https://portal.archipellabs.test (config/gateway/nginx.conf).
   portal:
     container_name: portal
     build:

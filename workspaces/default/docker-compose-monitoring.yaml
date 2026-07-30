@@ -8,9 +8,35 @@
 # The simulator is not part of TimberWorks — it is the instrument that produces
 # the symptom, and it knows each synthetic customer's intent. Feeding that to an
 # agent investigating the incident is handing over the answer key, so the boundary
-# is enforced by never collecting it: an allowlist in the Alloy config for logs,
-# the same allowlist in the Prometheus config for metrics. See
-# doc/agent-org-lab.md §4.
+# is enforced by never collecting it: an explicit allowlist for logs, and for
+# metrics only named targets are scraped. See doc/agent-org-lab.md §4.
+#
+# ── What is instrumented ────────────────────────────────────────────────────
+#
+# cAdvisor was here and is gone. On Docker Desktop it cannot traverse the VM's
+# cgroup filesystem: it reports the root cgroup and nothing else. Six
+# configurations were tested — host cgroup namespace, the docker socket, disabling
+# the disk metrics whose overlayfs/overlay2 path lookup fails — and the best of
+# them produced parent cgroups only, never a container. A privileged container
+# mounting the whole host read-only to return one useless series is a bad trade.
+#
+# THERE ARE NO EXPORTER CONTAINERS. That is deliberate, and it has a cost worth
+# stating: `docker compose ps` shows four containers and tells you nothing about
+# what is being watched. The answer lives in config/monitoring/alloy/config.alloy,
+# and this is what it collects:
+#
+#   logs      every allowlisted container, off the Docker socket   -> loki
+#   metrics   mysqld_exporter, in-process, x2 (prestashopdb, matomodb)
+#             camel      scraped at camel:8080/observe/metrics
+#             uptime     blackbox_exporter, in-process, 6 probes
+#                        (see config/monitoring/blackbox/blackbox.yml)
+#                                                                  -> prometheus
+#
+# nginx-exporter was here too and is gone: open-source stub_status offers
+# connection counts and one request counter — no status codes, no latency, no
+# per-host — while the gateway's JSON access log in Loki gives all three. Its only
+# unique signals were live concurrency and dropped connections, and at this lab's
+# request rate neither will ever say anything.
 #
 # ── Named volumes, which also solved an ownership problem ───────────────────
 #
@@ -52,7 +78,20 @@ services:
       - /etc/alloy/config.alloy
     volumes:
       - ./config/monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ./config/monitoring/blackbox/blackbox.yml:/etc/alloy/blackbox.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Where Alloy remembers how far it has read each container's log. Without
+      # it, every restart replays the whole log from the beginning and Loki
+      # rejects the old entries — "entry too far behind" — filling the collector's
+      # own output with errors while silently dropping history.
+      - alloy:/var/lib/alloy/data
+    # Alloy runs mysqld_exporter in-process for both databases, so it needs their
+    # credentials. The committed demo root passwords, same values as
+    # config/{prestashop,matomo}/default.env — named distinctly here because both
+    # of those files call it MYSQL_ROOT_PASSWORD and env_file would collide.
+    environment:
+      PRESTASHOPDB_PASSWORD: admin
+      MATOMODB_PASSWORD: matomo_root
     depends_on:
       - loki
     networks:
@@ -68,34 +107,16 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=24h
       - --log.level=warn
+      # So a scrape-config edit takes effect with
+      #   curl -X POST http://prometheus:9090/-/reload
+      # instead of a restart, which would discard the head block.
+      - --web.enable-lifecycle
+      # Alloy is the collector; Prometheus is storage. Without this the
+      # remote-write endpoint returns 404 and metrics vanish silently.
+      - --web.enable-remote-write-receiver
     volumes:
       - ./config/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus:/prometheus
-    networks:
-      - archipellabs_default_net
-
-  # Per-container CPU, memory, network and restarts for the whole stack, with no
-  # per-service exporters to install and no application changes. This is what
-  # makes "the infrastructure is fine" a wall of green graphs rather than a claim.
-  cadvisor:
-    container_name: cadvisor
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    restart: unless-stopped
-    # cAdvisor reads cgroups and the container runtime's state directly, which is
-    # what privileged buys here. It is read-only on every mount below.
-    privileged: true
-    command:
-      # Quiet, and only the metrics actually wanted: cAdvisor defaults to a very
-      # wide set and logs a warning per unavailable subsystem on Docker Desktop.
-      - --logtostderr=true
-      - --v=0
-      - --docker_only=true
-      - --disable_metrics=percpu,sched,tcp,udp,advtcp,process,hugetlb,referenced_memory,cpu_topology,resctrl
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
     networks:
       - archipellabs_default_net
 
@@ -116,6 +137,9 @@ services:
         required: false
     volumes:
       - ./config/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      # Separate from provisioning/: Grafana treats every file under a provider's
+      # `path` as a dashboard, so the provider yaml cannot live beside the JSON.
+      - ./config/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana:/var/lib/grafana
     depends_on:
       - loki
@@ -133,6 +157,8 @@ services:
 # <project>_<key> — one prefix for the whole stack means `docker volume ls
 # --filter name=archipellabs_default_` finds all of them and nothing else.
 volumes:
+  alloy:
+    name: archipellabs_default_alloy
   loki:
     name: archipellabs_default_loki
   prometheus:

@@ -43,7 +43,7 @@ workspaces/default/               the local demo stack
   docker-compose-simulator.yaml   the simulator, its activity DB (Postgres) and the portal that visualises it
   docker-compose-integration.yaml the ESB: Apache Camel, carrying master data from the ERP to the shop
   docker-compose-erp.yaml         the ERP: master data as files, served over SFTP
-  docker-compose-monitoring.yaml  logs + metrics (Loki, Alloy, Prometheus, cAdvisor, Grafana) — company systems only
+  docker-compose-monitoring.yaml  logs, metrics and uptime (Alloy, Loki, Prometheus, Grafana) — company systems only
   config/                         stack config: gateway (nginx + certs), demo secrets (env files)
   doc/                            TimberWorks brand: design.md, lore.md
   volumes/                        runtime data — DBs + PrestaShop web root (gitignored)
@@ -54,11 +54,16 @@ workspaces/default/               the local demo stack
 
 ### 1. Hostnames (one-time)
 
-Every service is served at the root of its own name, so they need to resolve on
-your machine. One line, once:
+Every service is served at the root of its own name, so those names have to
+resolve on your machine. Add this to **`/etc/hosts`** (needs sudo):
 
-```sh
-echo '127.0.0.1  archipellabs.test shop.archipellabs.test tracking.archipellabs.test portal.archipellabs.test grafana.archipellabs.test' | sudo tee -a /etc/hosts
+```
+# Archipel Labs — local stack
+127.0.0.1    archipellabs.test
+127.0.0.1    shop.archipellabs.test
+127.0.0.1    tracking.archipellabs.test
+127.0.0.1    portal.archipellabs.test
+127.0.0.1    grafana.archipellabs.test
 ```
 
 `.test` is reserved by RFC 6761 and can never collide with real DNS. The gateway

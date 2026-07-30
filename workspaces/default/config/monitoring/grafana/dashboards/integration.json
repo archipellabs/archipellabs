@@ -1,0 +1,555 @@
+{
+  "schemaVersion": 39,
+  "timezone": "America/Chicago",
+  "editable": true,
+  "refresh": "30s",
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Archipel Labs",
+      "tags": [
+        "archipellabs"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "uid": "integration",
+  "title": "Integration \u2014 Camel routes",
+  "tags": [
+    "archipellabs",
+    "integration"
+  ],
+  "description": "The integration layer reporting on itself. Every metric is one Camel actually exposes via --observe: no JVM, and the timings are summaries rather than histograms, so durations are mean and max \u2014 never percentiles.\n\n'failed exchanges' is the panel that matters. It stays at zero WHILE a market goes dark, because the sync is not broken \u2014 it faithfully applied a bad instruction. Green here beside falling orders is the thesis.",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "routes running",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d03b3b",
+                "value": null
+              },
+              {
+                "color": "#0ca30c",
+                "value": 6
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(camel_routes_running_routes)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "failed exchanges",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0ca30c",
+                "value": null
+              },
+              {
+                "color": "#d03b3b",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(camel_exchanges_failed_total{eventType=\"context\"})"
+        }
+      ],
+      "description": "Zero through the reference incident. That is the point, not a bug."
+    },
+    {
+      "type": "stat",
+      "title": "failures handled",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#0ca30c",
+                "value": null
+              },
+              {
+                "color": "#d03b3b",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(camel_exchanges_failures_handled_total{eventType=\"context\"})"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "exchanges completed",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(camel_exchanges_succeeded_total{eventType=\"context\"})"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "in flight",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(camel_exchanges_inflight)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "camel reachable",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d03b3b",
+                "value": null
+              },
+              {
+                "color": "#0ca30c",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "text": {
+          "valueSize": 36
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"camel\"}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "exchanges / sec by route",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "lineWidth": 2,
+            "gradientMode": "none"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(camel_exchanges_succeeded_total{eventType=\"route\"}[$__rate_interval])",
+          "legendFormat": "{{routeId}}"
+        }
+      ],
+      "description": "A reconcile shows as a burst on carriers-from-file and suppliers-from-file. Failures are a separate panel \u2014 mixing a flat-zero series into this one would just add a line at the axis."
+    },
+    {
+      "type": "timeseries",
+      "title": "failed exchanges / sec by route",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "lineWidth": 2,
+            "gradientMode": "none"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(camel_exchanges_failed_total{eventType=\"route\"}[$__rate_interval])",
+          "legendFormat": "{{routeId}}"
+        }
+      ],
+      "description": "Expected to be empty. It is here so that 'nothing failed' is something you can see rather than assume."
+    },
+    {
+      "type": "row",
+      "title": "shop calls, per endpoint",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": true,
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "mean call latency",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 13,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "showPoints": "never",
+                "lineWidth": 2,
+                "gradientMode": "none"
+              },
+              "color": {
+                "mode": "palette-classic"
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "calcs": [
+                "mean",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(camel_exchange_event_notifier_seconds_sum{eventType=\"ExchangeSentEvent\"}[$__rate_interval]) / rate(camel_exchange_event_notifier_seconds_count{eventType=\"ExchangeSentEvent\"}[$__rate_interval])",
+              "legendFormat": "{{endpointName}}"
+            }
+          ],
+          "description": "Every PrestaShop resource the routes touch, timed separately \u2014 a slow resource is visible without instrumenting the shop."
+        },
+        {
+          "type": "timeseries",
+          "title": "slowest call seen",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 13,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "fillOpacity": 8,
+                "showPoints": "never",
+                "lineWidth": 2,
+                "gradientMode": "none"
+              },
+              "color": {
+                "mode": "palette-classic"
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true,
+              "calcs": [
+                "mean",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "camel_exchange_event_notifier_seconds_max{eventType=\"ExchangeSentEvent\"}",
+              "legendFormat": "{{endpointName}}"
+            }
+          ],
+          "description": "Summary max. Camel exposes no buckets, so a percentile is not available at any price."
+        }
+      ]
+    }
+  ]
+}
