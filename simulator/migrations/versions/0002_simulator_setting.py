@@ -1,7 +1,7 @@
 """simulator_setting — runtime-tunable configuration overrides
 
 A row exists only when a setting has been overridden; the static config in
-src/config.py remains the source of defaults. See services/settings/service.py.
+src/config.py remains the source of defaults. See services/configuration/service.py.
 
 Revision ID: 0002
 Revises: 0001

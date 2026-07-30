@@ -177,9 +177,34 @@ def test_validate_coerces_the_wire_shape():
     assert validate("max_arrivals_per_tick", "5") == 5
 
 
-def test_validate_rejects_a_bad_shape():
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("market_mix", {"US": "lots"}),
+        ("market_mix", {"ZZ": 1}),
+        ("market_mix", {}),
+        ("market_mix", {"US": -1}),
+        ("base_arrivals_per_minute", -1),
+        ("max_arrivals_per_tick", -1),
+    ],
+)
+def test_validate_rejects_values_that_are_not_safe_to_apply(key, value):
     with pytest.raises(ValueError):
-        validate("market_mix", {"US": "lots"})
+        validate(key, value)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"market_mix": {"ZZ": 1}},
+        {"market_mix": {}},
+        {"base_arrivals_per_minute": -1},
+        {"max_arrivals_per_tick": -1},
+    ],
+)
+def test_static_settings_enforce_the_same_domain_rules(values):
+    with pytest.raises(ValueError):
+        Settings(**values)
 
 
 def test_validate_refuses_a_key_that_is_not_tunable():

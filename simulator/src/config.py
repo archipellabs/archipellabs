@@ -1,4 +1,22 @@
+from typing import Annotated
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.external_flows.customer_arrivals.envelope import LOCATIONS
+
+NonNegativeFiniteFloat = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+NonNegativeInt = Annotated[int, Field(ge=0)]
+
+
+def validate_market_mix(value: dict[str, NonNegativeFiniteFloat]) -> dict[str, float]:
+    """Accept only usable, known markets with a positive total weight."""
+    unknown = sorted(set(value) - set(LOCATIONS))
+    if unknown:
+        raise ValueError(f"unknown market(s) {unknown}; known: {sorted(LOCATIONS)}")
+    if sum(value.values()) <= 0:
+        raise ValueError("market mix needs a positive total weight")
+    return value
 
 
 class Settings(BaseSettings):
@@ -61,16 +79,16 @@ class Settings(BaseSettings):
     browser_no_sandbox: bool = False  # containers need Chromium's --no-sandbox
 
     # customer_arrivals producer
-    market_mix: dict[str, float] = {"US": 0.75, "CA": 0.25}
+    market_mix: dict[str, NonNegativeFiniteFloat] = {"US": 0.75, "CA": 0.25}
     """Which markets the shop draws traffic from, and in what proportion.
     Relative weights, not percentages. Set as JSON: MARKET_MIX='{"US": 1}'.
     Every key needs a location catalogue in customer_arrivals/envelope.py and an
     *active* country in the shop, or its customers cannot check out."""
     tick_seconds: float = 5.0
-    base_arrivals_per_minute: float = 3.0
+    base_arrivals_per_minute: NonNegativeFiniteFloat = 3.0
     # Daily/hourly traffic curves follow the simulated market's local clock.
     arrival_timezone: str = "America/Chicago"
-    max_arrivals_per_tick: int = 1000
+    max_arrivals_per_tick: NonNegativeInt = 1000
     random_seed: int | None = None  # set for a reproducible producer run
 
     # Activity database (PostgreSQL) — records each journey run for charts. Core
@@ -81,6 +99,8 @@ class Settings(BaseSettings):
     simulatordb_url: str = (
         "postgresql+psycopg://simulator:changeme_demo@localhost:5432/simulator"
     )
+
+    _validate_market_mix = field_validator("market_mix")(validate_market_mix)
 
 
 settings = Settings()

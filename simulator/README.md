@@ -133,15 +133,17 @@ from src.technical_flows.topics import Topic
 
 await ctx.call(Topic.CONFIG_APPLY, key="base_arrivals_per_minute", value=9)
 await ctx.call(Topic.CONFIG_APPLY, key="customer-arrivals", value=False)  # pause
-await ctx.call(Topic.CONFIG_APPLY, key="base_arrivals_per_minute")        # reset
+await ctx.call(Topic.CONFIG_APPLY, key="base_arrivals_per_minute")  # reset
 ```
 
 A **value** is stored in the settings table and picked up by the next read. A
 **flow name** flips a runtime switch, which pauses consumption while the stream
-keeps filling, so resuming drains the backlog rather than losing it. The
-`*_ENABLED` variables are deliberately *not* changeable this way: they gate
-`App.include()`, which runs once at boot, so a service left out was never
-constructed and no switch reaches it.
+keeps filling, so resuming drains the backlog rather than losing it.
+`config.describe` reports both whether a flow is `mounted` and whether it is
+`running`; trying to switch an unmounted flow is rejected. The `*_ENABLED`
+variables are deliberately *not* changeable this way: they gate `App.include()`,
+which runs once at boot, so a service left out was never constructed and no
+switch reaches it.
 
 ### Delivery behavior
 

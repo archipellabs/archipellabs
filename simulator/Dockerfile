@@ -51,7 +51,7 @@ COPY migrations/ ./migrations/
 #  - Chromium must run with --no-sandbox inside a container (BROWSER_NO_SANDBOX).
 #  - Point at the compose service names; secrets (API keys) come from env/.env,
 #    never baked into the image.
-ENV HEADLESS=true \
+ENV DEBUG_SHOW_BROWSER=false \
     BROWSER_NO_SANDBOX=true \
     REDIS_URL=redis://redis:6379/0 \
     SHOP_BASE_URL=https://gateway

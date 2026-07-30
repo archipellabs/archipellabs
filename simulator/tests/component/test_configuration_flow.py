@@ -18,6 +18,7 @@ from runtime.context import RuntimeContext
 from runtime.redis_io import RedisBroker
 from runtime.switches import SwitchBoard
 
+from src.services.configuration import service as configuration_module
 from src.technical_flows.configuration import actions as actions_module
 from src.technical_flows.contracts import ConfigChange
 from src.technical_flows.topics import Topic
@@ -25,6 +26,14 @@ from src.technical_flows.topics import Topic
 REGISTRATION = next(
     r for r in actions_module.service.consumers if r.name == Topic.CONFIG_APPLY
 )
+
+
+@pytest.fixture(autouse=True)
+def mounted_switch_targets(monkeypatch):
+    """Exercise switch delivery independently of local static enable flags."""
+    for flags in actions_module.FLOW_ENABLE_FLAGS.values():
+        for flag in flags:
+            monkeypatch.setattr(configuration_module.settings, flag, True)
 
 
 @pytest.fixture
@@ -65,11 +74,16 @@ async def test_a_pause_sent_over_the_queue_reaches_the_switch_registry(broker):
     switches = SwitchBoard(broker)
 
     result = await _apply_over_the_queue(
-        broker, switches, key="customer-arrivals", value=False
+        broker, switches, key="customer-journey", value=False
     )
 
-    assert result == {"key": "customer-arrivals", "kind": "flow", "running": False}
-    assert switches.is_enabled("customer-arrivals") is False
+    assert result == {
+        "key": "customer-journey",
+        "kind": "flow",
+        "mounted": True,
+        "running": False,
+    }
+    assert switches.is_enabled("customer-journey") is False
 
 
 async def test_a_pause_is_visible_to_a_switchboard_that_did_not_make_it(broker):

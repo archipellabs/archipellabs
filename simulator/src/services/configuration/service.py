@@ -50,7 +50,12 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.config import settings
+from src.config import (
+    NonNegativeFiniteFloat,
+    NonNegativeInt,
+    settings,
+    validate_market_mix,
+)
 from src.services.configuration.models import SimulatorSetting
 
 log = logging.getLogger("simulator.configuration")
@@ -58,9 +63,9 @@ log = logging.getLogger("simulator.configuration")
 CACHE_TTL_SECONDS = 60.0
 
 TUNABLES: dict[str, Any] = {
-    "base_arrivals_per_minute": float,
-    "market_mix": dict[str, float],
-    "max_arrivals_per_tick": int,
+    "base_arrivals_per_minute": NonNegativeFiniteFloat,
+    "market_mix": dict[str, NonNegativeFiniteFloat],
+    "max_arrivals_per_tick": NonNegativeInt,
     "fast": bool,
 }
 """What may be changed at runtime, and the shape each value must have.
@@ -98,9 +103,15 @@ def validate(key: str, value: Any) -> Any:
     if key not in TUNABLES:
         raise KeyError(f"{key!r} is not runtime-tunable; tunables: {sorted(TUNABLES)}")
     try:
-        return TypeAdapter(TUNABLES[key]).validate_python(value)
+        coerced = TypeAdapter(TUNABLES[key]).validate_python(value)
     except ValidationError as exc:
         raise ValueError(f"{key!r} rejected: {exc.errors()[0]['msg']}") from exc
+    if key == "market_mix":
+        try:
+            return validate_market_mix(coerced)
+        except ValueError as exc:
+            raise ValueError(f"{key!r} rejected: {exc}") from exc
+    return coerced
 
 
 def _static(key: str) -> Any:

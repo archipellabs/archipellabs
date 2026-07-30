@@ -62,10 +62,12 @@ async def tick(ctx: Context) -> None:
     # Re-read every tick, so a change lands without a restart. Answered from the
     # configuration snapshot, so this is a dict lookup rather than a query.
     identities.set_market_mix(configuration.get("market_mix"))
-    rate: RateConfig = ctx.resources["rate"].model_copy(
-        update={
-            "base_arrivals_per_minute": configuration.get("base_arrivals_per_minute")
-        }
+    curve: RateConfig = ctx.resources["rate"]
+    rate = RateConfig(
+        base_arrivals_per_minute=configuration.get("base_arrivals_per_minute"),
+        timezone=curve.timezone,
+        noise_min=curve.noise_min,
+        noise_max=curve.noise_max,
     )
 
     tick_seconds: float = configuration.get("tick_seconds")

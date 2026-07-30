@@ -68,18 +68,38 @@ three services each register a producer with `id='tick'`, so a switch on `tick`
 would pause all three at once.
 """
 
+FLOW_ENABLE_FLAGS: dict[str, tuple[str, ...]] = {
+    "customer-journey": ("journey_enabled",),
+    "customer-arrivals": ("arrivals_enabled",),
+    "catalog": ("catalog_enabled",),
+    "catalog-doctor": ("catalog_enabled", "catalog_doctor_enabled"),
+    "stock-refill": ("stock_enabled",),
+    "payment-settlement": ("payments_enabled",),
+}
+"""Static wiring that must be present before a runtime switch can do anything."""
+
 service = Service("configuration", max_slots=1)
+
+
+def _flow_is_mounted(name: str) -> bool:
+    return all(configuration.get(flag) for flag in FLOW_ENABLE_FLAGS[name])
 
 
 async def _apply_flow(ctx: Context, name: str, value: Any) -> dict[str, Any]:
     """Pause or resume a mounted flow. `None` resets, which means running."""
+    if not _flow_is_mounted(name):
+        flags = ", ".join(flag.upper() for flag in FLOW_ENABLE_FLAGS[name])
+        raise ValueError(
+            f"{name!r} is not mounted; enable {flags} and restart before switching it"
+        )
+
     running = True if value is None else value
     if not isinstance(running, bool):
         raise ValueError(f"{name!r} is a flow switch and takes true or false")
 
     await ctx.set_enabled(name, running)
     log.info("flow %s %s", name, "resumed" if running else "paused")
-    return {"key": name, "kind": "flow", "running": running}
+    return {"key": name, "kind": "flow", "mounted": True, "running": running}
 
 
 async def _apply_value(key: str, value: Any) -> dict[str, Any]:
@@ -114,14 +134,17 @@ async def apply(ctx: Context, change: ConfigChange) -> dict[str, Any]:
 async def describe(ctx: Context, params: Params) -> dict[str, Any]:
     """Everything changeable, its current value, and where that value came from.
 
-    What a settings UI renders. Flows report `running` from the switch snapshot
-    this process holds, so a flip made elsewhere shows up within the switchboard's
-    refresh interval rather than instantly.
+    What a settings UI renders. `mounted` is the static wiring decision; `running`
+    is meaningful only when mounted and comes from the switch snapshot this
+    process holds. A flip made elsewhere shows up within the switchboard's refresh
+    interval rather than instantly.
     """
-    return {
-        "values": await configuration.describe(),
-        "flows": {
-            name: {"running": ctx.is_enabled(name), "what": what}
-            for name, what in sorted(FLOW_SWITCHES.items())
-        },
-    }
+    flows: dict[str, dict[str, Any]] = {}
+    for name, what in sorted(FLOW_SWITCHES.items()):
+        mounted = _flow_is_mounted(name)
+        flows[name] = {
+            "mounted": mounted,
+            "running": mounted and ctx.is_enabled(name),
+            "what": what,
+        }
+    return {"values": await configuration.describe(), "flows": flows}
