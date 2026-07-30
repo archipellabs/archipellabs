@@ -62,6 +62,15 @@ log = logging.getLogger("simulator.configuration")
 
 CACHE_TTL_SECONDS = 60.0
 
+FLOW_PREFIX = "flow:"
+"""Namespaces a flow's on/off flag inside the same settings table.
+
+One table rather than two: a flag is configuration, it is written by the same
+action and read by the same snapshot, and a second table would need a second
+migration, a second cache and a second reload path to say the same thing. The
+prefix keeps the two kinds apart in one `SELECT` — a value key is a `Settings`
+attribute, a flag key never is."""
+
 TUNABLES: dict[str, Any] = {
     "base_arrivals_per_minute": NonNegativeFiniteFloat,
     "market_mix": dict[str, NonNegativeFiniteFloat],
@@ -154,6 +163,7 @@ class Configuration:
         self._ttl = ttl_seconds
         self._sessionmaker: async_sessionmaker[AsyncSession] | None = None
         self._overrides: dict[str, Any] = {}
+        self._flags: dict[str, bool] = {}
         self._loaded_at: float | None = None
         self._reloading = False
         self._tasks: set[asyncio.Task[None]] = set()
@@ -170,6 +180,7 @@ class Configuration:
         self._sessionmaker = sessionmaker
         if sessionmaker is None:
             self._overrides = {}
+            self._flags = {}
             self._loaded_at = None
 
     @property
@@ -210,6 +221,52 @@ class Configuration:
         """
         await self.refresh()
         return {key: _describe(key, self._overrides) for key in sorted(TUNABLES)}
+
+    def is_running(self, flow: str) -> bool:
+        """Whether a flow is switched on. Absent means running.
+
+        The same "absent means enabled" rule the runtime's registry uses, so a
+        fresh database behaves exactly like a fresh Redis and nothing has to be
+        seeded.
+        """
+        self._reload_if_stale()
+        return self._flags.get(flow, True)
+
+    def flags(self) -> dict[str, bool]:
+        """Every flow flag explicitly stored. Anything absent is running."""
+        self._reload_if_stale()
+        return dict(self._flags)
+
+    async def set_running(self, flow: str, running: bool | None) -> bool:
+        """Store a flow's flag, or drop it with `None`. Returns what now holds.
+
+        This is the durable half of a pause. The runtime's switch registry is
+        what workers actually consult, but it lives in Redis — transport, wiped
+        with the stack — so it cannot be where the decision is kept. A caller
+        writes here and then projects onto the registry; see
+        `technical_flows/configuration`.
+        """
+        sessionmaker = self._require_source()
+        key = FLOW_PREFIX + flow
+
+        async with sessionmaker() as session:
+            if running is None:
+                row = await session.get(SimulatorSetting, key)
+                if row is not None:
+                    await session.delete(row)
+            else:
+                await session.execute(
+                    insert(SimulatorSetting)
+                    .values(key=key, value=running)
+                    .on_conflict_do_update(
+                        index_elements=[SimulatorSetting.key],
+                        set_={"value": running, "updated_at": func.now()},
+                    )
+                )
+            await session.commit()
+
+        await self._load(sessionmaker)
+        return self.is_running(flow)
 
     async def set(self, key: str, value: Any) -> Any:
         """Store an override. Returns the value as stored."""
@@ -260,7 +317,14 @@ class Configuration:
             rows = (await session.execute(select(SimulatorSetting))).scalars().all()
 
         overrides: dict[str, Any] = {}
+        flags: dict[str, bool] = {}
         for row in rows:
+            if row.key.startswith(FLOW_PREFIX):
+                if isinstance(row.value, bool):
+                    flags[row.key[len(FLOW_PREFIX) :]] = row.value
+                else:
+                    log.warning("ignoring flow flag %s: not a boolean", row.key)
+                continue
             try:
                 overrides[row.key] = validate(row.key, row.value)
             except (KeyError, ValueError) as exc:
@@ -270,6 +334,7 @@ class Configuration:
                 log.warning("ignoring stored setting %s: %s", row.key, exc)
 
         self._overrides = overrides
+        self._flags = flags
         self._loaded_at = time.monotonic()
 
     def _reload_if_stale(self) -> None:

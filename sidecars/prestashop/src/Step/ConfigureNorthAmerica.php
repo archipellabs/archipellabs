@@ -37,11 +37,6 @@ final class ConfigureNorthAmerica extends BaseStep
     private const DISABLE_CURRENCIES = ['GBP'];
     /** One shipping zone per country, so coverage can differ between them. */
     private const COUNTRY_ZONES = ['US' => 'United States', 'CA' => 'Canada'];
-    /**
-     * TimberWorks is a Dallas company, so its clock is Dallas. Matches the
-     * simulator's ARRIVAL_TIMEZONE, which is what shapes the daily traffic curve.
-     */
-    private const TIMEZONE = 'America/Chicago';
     /** Drives address format and locale defaults; PrestaShop ships GB. */
     private const LOCALE_COUNTRY = 'US';
     /** Flat shipping price, per zone, for every carrier. */
@@ -117,9 +112,10 @@ final class ConfigureNorthAmerica extends BaseStep
      */
     private function configureLocale(Context $ctx): void
     {
-        \Configuration::updateValue('PS_TIMEZONE', self::TIMEZONE);
+        $timezone = $ctx->config->timezone();
+        \Configuration::updateValue('PS_TIMEZONE', $timezone);
         \Configuration::updateValue('PS_LOCALE_COUNTRY', self::LOCALE_COUNTRY);
-        $ctx->log->info('Timezone = ' . self::TIMEZONE . ', locale country = ' . self::LOCALE_COUNTRY);
+        $ctx->log->info('Timezone = ' . $timezone . ', locale country = ' . self::LOCALE_COUNTRY);
     }
 
     private function configureCurrencies(Context $ctx): void

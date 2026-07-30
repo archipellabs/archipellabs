@@ -22,6 +22,7 @@ from src.services.configuration import service as configuration_module
 from src.technical_flows.configuration import actions as actions_module
 from src.technical_flows.contracts import ConfigChange
 from src.technical_flows.topics import Topic
+from tests.conftest import use_overrides
 
 REGISTRATION = next(
     r for r in actions_module.service.consumers if r.name == Topic.CONFIG_APPLY
@@ -34,6 +35,12 @@ def mounted_switch_targets(monkeypatch):
     for flags in actions_module.FLOW_ENABLE_FLAGS.values():
         for flag in flags:
             monkeypatch.setattr(configuration_module.settings, flag, True)
+
+
+@pytest.fixture(autouse=True)
+async def settings_db():
+    """A flow flag is stored before it is projected, so the store must exist."""
+    return await use_overrides()
 
 
 @pytest.fixture
@@ -109,6 +116,25 @@ async def test_resuming_over_the_queue_clears_the_pause(broker):
     await _apply_over_the_queue(broker, switches, key="catalog-doctor", value=True)
 
     assert switches.is_enabled("catalog-doctor") is True
+
+
+async def test_a_pause_is_replayed_onto_a_registry_that_lost_it(broker, settings_db):
+    """Restart with a wiped Redis: the registry says everything runs, the
+    database says otherwise, and the boot replay settles it."""
+    switches = SwitchBoard(broker)
+    await _apply_over_the_queue(broker, switches, key="catalog-doctor", value=False)
+
+    # A brand-new Redis — exactly what a `docker compose down -v` leaves behind.
+    fresh_broker = RedisBroker(FakeRedis(decode_responses=True))
+    fresh = SwitchBoard(fresh_broker)
+    await fresh.refresh()
+    assert fresh.is_enabled("catalog-doctor") is True  # nothing paused yet
+
+    await actions_module.replay_flow_flags(RuntimeContext(fresh_broker, switches=fresh))
+
+    assert fresh.is_enabled("catalog-doctor") is False
+    assert fresh.is_enabled("customer-journey") is True
+    await fresh_broker.aclose()
 
 
 async def test_the_master_switch_covers_what_its_service_registers(broker):

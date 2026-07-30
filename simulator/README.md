@@ -145,6 +145,40 @@ variables are deliberately *not* changeable this way: they gate `App.include()`,
 which runs once at boot, so a service left out was never constructed and no
 switch reaches it.
 
+A flow flag is a **feature flag**, not a debugging aid — "the catalog doctor is
+off for this scenario" is a deliberate decision — so it is stored like any other
+configuration, in `simulator_setting`, under a `flow:` key. Both halves of the
+control plane live in one table and survive a restart together.
+
+The runtime's switch registry still exists, because only it can *enforce* a
+pause: the check sits inside the claim loop, and nothing outside the runtime can
+stop a worker taking new work. But it is a Redis hash, and **Redis here is
+transport** — no named volume, AOF off, wiped with the stack. So it is a cache
+with a job, not a source of truth:
+
+```
+  simulator_setting (Postgres)   ← the decision
+          │  written first, on every change
+          ▼
+  switch registry (Redis)        ← the projection, replayed at boot
+          │  read every 2s by each worker
+          ▼
+  slot_worker: pause before claiming
+```
+
+Two consequences worth knowing. A flag set here survives `docker compose down -v`
+and is re-projected at the next boot. And a switch flipped *straight into Redis*
+with `runtime.switches` is undone at that same boot — it never went through the
+place the decision is kept.
+
+A switch name that matches no registration is logged at ERROR by the runtime
+(0.3.2+) rather than silently accepted, since Redis takes any field:
+
+```
+switch 'catalogue' matches no registration here, so it changes nothing in this
+process. Known: catalog, catalog-doctor, catalog.sync, ...
+```
+
 ### Delivery behavior
 
 `archipellabs-runtime` 0.3 acknowledges a message once its handler has been

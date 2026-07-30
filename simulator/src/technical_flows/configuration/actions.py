@@ -15,20 +15,25 @@ is a library every flow imports to *read* a setting, on the hot path, with no
 to *change* one. Splitting them along that line keeps the thing every tick calls
 free of the queue, the database writes and the switch registry.
 
-**Two kinds of key, two backing stores.** That split is the whole design here:
+**Two kinds of key, one store.** Both live in `simulator_setting`, because both
+are configuration and configuration is durable:
 
-* A **value** — `base_arrivals_per_minute`, `market_mix`, `fast`. Lives in the
-  settings table. Applying it is a write; nothing else has to happen, because
-  every consumer re-reads it (the tick each pass, the journey each customer).
-* A **flow** — `customer-journey`, `catalog-doctor`. Lives in the runtime's
-  switch registry. Applying it flips a switch, which pauses *consumption* while
-  the stream keeps filling, so resuming drains the backlog rather than losing it.
+* A **value** — `base_arrivals_per_minute`, `market_mix`, `fast`. Applying it is
+  a write and nothing else has to happen, because every consumer re-reads it (the
+  tick each pass, the journey each customer).
+* A **flow flag** — `customer-journey`, `catalog-doctor`. Applying it is a write
+  *and* a projection: the database records the decision, then the runtime's
+  switch registry is updated so workers stop claiming. Pausing stops consumption
+  while the stream keeps filling, so resuming drains the backlog.
 
-A flow is not stored as a setting, deliberately. The switch registry is already
-durable (a Redis hash) and already authoritative — every worker checks it on its
-own timer. Mirroring it into the settings table would create a second source of
-truth for "is this running", and the two would disagree the first time anyone
-used `runtime.switches` directly.
+The registry is not a second source of truth, it is a **cache with a job**. Only
+the runtime can enforce a pause — the check lives inside the claim loop, and
+nothing outside it can stop a worker taking new work. But that registry is a
+Redis hash, and Redis here is transport: no named volume, AOF off, wiped with the
+stack. State that must survive cannot live there. So the database decides and
+Redis carries the decision, which is why `replay_flow_flags` re-projects at boot
+and why `describe` reports `running` from the database rather than reading the
+copy back.
 
 **What this cannot do.** A switch pauses something *mounted*. A service left out
 by `include(enabled=False)` was never constructed and its lifespan never ran, so
@@ -86,20 +91,49 @@ def _flow_is_mounted(name: str) -> bool:
 
 
 async def _apply_flow(ctx: Context, name: str, value: Any) -> dict[str, Any]:
-    """Pause or resume a mounted flow. `None` resets, which means running."""
+    """Pause or resume a mounted flow. `None` resets, which means running.
+
+    Database first, registry second, and the order is the point. The database is
+    where the decision lives; the switch registry is how it reaches the workers
+    that enforce it. If the projection fails, the flag is still recorded and the
+    next boot replays it — the reverse would leave a pause that no longer exists
+    anywhere after a stack wipe.
+    """
     if not _flow_is_mounted(name):
         flags = ", ".join(flag.upper() for flag in FLOW_ENABLE_FLAGS[name])
         raise ValueError(
             f"{name!r} is not mounted; enable {flags} and restart before switching it"
         )
-
-    running = True if value is None else value
-    if not isinstance(running, bool):
+    if value is not None and not isinstance(value, bool):
         raise ValueError(f"{name!r} is a flow switch and takes true or false")
 
+    running = await configuration.set_running(name, value)
     await ctx.set_enabled(name, running)
     log.info("flow %s %s", name, "resumed" if running else "paused")
     return {"key": name, "kind": "flow", "mounted": True, "running": running}
+
+
+@service.once(id="flow-flags")
+async def replay_flow_flags(ctx: Context) -> None:
+    """Project the stored flags onto the switch registry at boot.
+
+    Redis is the runtime's transport and is wiped with the stack, so the registry
+    starts empty — meaning "everything running" — while the database still holds
+    the flags someone set. Without this, every restart silently resumes every
+    paused flow.
+
+    It writes all of them, not just the paused ones, so the registry *converges*
+    on the database. That also means a flip made straight into Redis with
+    `runtime.switches` is undone at the next boot: it never went through the
+    place the decision is kept.
+    """
+    await configuration.refresh()
+    for name in FLOW_SWITCHES:
+        await ctx.set_enabled(name, configuration.is_running(name))
+    paused = sorted(
+        name for name in FLOW_SWITCHES if not configuration.is_running(name)
+    )
+    log.info("flow flags restored from the database; paused: %s", paused or "none")
 
 
 async def _apply_value(key: str, value: Any) -> dict[str, Any]:
@@ -144,7 +178,10 @@ async def describe(ctx: Context, params: Params) -> dict[str, Any]:
         mounted = _flow_is_mounted(name)
         flows[name] = {
             "mounted": mounted,
-            "running": mounted and ctx.is_enabled(name),
+            # From the database, not from `ctx.is_enabled`: the registry is a
+            # projection, and reading it back would report the copy rather than
+            # the decision — including during the window where the two disagree.
+            "running": mounted and configuration.is_running(name),
             "what": what,
         }
     return {"values": await configuration.describe(), "flows": flows}

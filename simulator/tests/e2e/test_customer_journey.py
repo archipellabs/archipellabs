@@ -9,7 +9,7 @@ marker:
 Override via env vars:
 
     SHOP_BASE_URL=https://staging.example.com uv run pytest
-    DEBUG_SHOW_BROWSER=false uv run pytest  # this module watches by default
+    DEBUG_SHOW_BROWSER=true uv run pytest   # watch the browser
     FAST=false   uv run pytest              # keep realistic think-time pauses
 """
 
@@ -29,7 +29,7 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 BASE_URL = os.getenv("SHOP_BASE_URL", "https://shop.archipellabs.test")
-SHOW_BROWSER = _env_bool("DEBUG_SHOW_BROWSER", True)
+SHOW_BROWSER = _env_bool("DEBUG_SHOW_BROWSER", False)
 FAST = _env_bool("FAST", True)
 
 

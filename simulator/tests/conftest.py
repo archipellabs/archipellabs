@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from sqlalchemy.dialects.postgresql import Insert
 
 from src.external_flows.contracts import (
     CustomerArrivalEvent,
@@ -39,8 +40,16 @@ class _FakeResult:
 
 
 class _FakeSession:
-    def __init__(self, rows: list[SimulatorSetting]) -> None:
-        self._rows = rows
+    """Reads and writes the list it was handed, as a real session would its table.
+
+    Writes are supported because a flow flag is stored, not just read: without
+    them every pause test would need a live Postgres. `execute` tells the two
+    statement kinds apart the way the caller builds them — a `Select` reads, an
+    `Insert` upserts, and the compiled statement carries the key and value.
+    """
+
+    def __init__(self, db: FakeSettingsDb) -> None:
+        self._db = db
 
     async def __aenter__(self) -> _FakeSession:
         return self
@@ -48,12 +57,24 @@ class _FakeSession:
     async def __aexit__(self, *exc: object) -> bool:
         return False
 
-    async def execute(self, statement: object) -> _FakeResult:
-        return _FakeResult(self._rows)
+    async def execute(self, statement: Any) -> _FakeResult:
+        if isinstance(statement, Insert):
+            params = statement.compile().params
+            self._db.put(str(params["key"]), params["value"])
+            return _FakeResult([])
+        return _FakeResult(self._db.rows)
+
+    async def get(self, model: object, key: str) -> SimulatorSetting | None:
+        return next((r for r in self._db.rows if r.key == key), None)
+
+    async def delete(self, row: SimulatorSetting) -> None:
+        self._db.rows = [r for r in self._db.rows if r.key != row.key]
+
+    async def commit(self) -> None: ...
 
 
 class FakeSettingsDb:
-    """The overrides table, in memory, shaped like a sessionmaker.
+    """The settings table, in memory, shaped like a sessionmaker.
 
     Counts the sessions it opens, which is how the caching tests observe round
     trips without a database to instrument.
@@ -63,9 +84,16 @@ class FakeSettingsDb:
         self.rows = [SimulatorSetting(key=k, value=v) for k, v in overrides.items()]
         self.opened = 0
 
+    def put(self, key: str, value: Any) -> None:
+        for row in self.rows:
+            if row.key == key:
+                row.value = value
+                return
+        self.rows.append(SimulatorSetting(key=key, value=value))
+
     def __call__(self) -> _FakeSession:
         self.opened += 1
-        return _FakeSession(self.rows)
+        return _FakeSession(self)
 
 
 async def use_overrides(**values: Any) -> FakeSettingsDb:

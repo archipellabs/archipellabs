@@ -14,8 +14,10 @@ from src.technical_flows.configuration.actions import (
     FLOW_ENABLE_FLAGS,
     apply,
     describe,
+    replay_flow_flags,
 )
 from src.technical_flows.contracts import ConfigChange
+from tests.conftest import use_overrides
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +31,12 @@ def mounted_services(monkeypatch):
         "payments_enabled",
     ):
         monkeypatch.setattr(service_module.settings, flag, True)
+
+
+@pytest.fixture(autouse=True)
+async def settings_db():
+    """A flow flag is stored, so every test needs somewhere to store it."""
+    return await use_overrides()
 
 
 class FakeCtx:
@@ -49,37 +57,62 @@ class FakeCtx:
             self.paused.add(name)
 
 
-async def test_pausing_a_flow_flips_its_runtime_switch():
+async def test_pausing_a_flow_records_it_and_projects_it(settings_db):
+    """Both halves matter. The database keeps the decision; the registry is how
+    workers find out. Either alone is a pause that does nothing, or one that
+    evaporates with Redis."""
     ctx = FakeCtx()
 
     result = await apply(ctx, ConfigChange(key="customer-journey", value=False))
 
-    assert ctx.flips == [("customer-journey", False)]
     assert result == {
         "key": "customer-journey",
         "kind": "flow",
         "mounted": True,
         "running": False,
     }
+    assert ctx.flips == [("customer-journey", False)]  # projected onto Redis
+    assert {r.key: r.value for r in settings_db.rows} == {
+        "flow:customer-journey": False
+    }
+
+
+async def test_a_pause_outlives_a_wiped_switch_registry():
+    """The whole reason the flag is in the database.
+
+    Redis is transport and goes away with the stack, so a new process starts on
+    an empty registry — which means "everything running" — while the database
+    still holds what someone decided.
+    """
+    await apply(FakeCtx(), ConfigChange(key="catalog-doctor", value=False))
+
+    restarted = FakeCtx()  # fresh Redis: nothing paused
+    await replay_flow_flags(restarted)
+
+    assert restarted.is_enabled("catalog-doctor") is False
+    assert restarted.is_enabled("customer-journey") is True
 
 
 async def test_resuming_a_flow_flips_it_back():
-    ctx = FakeCtx("customer-journey")
+    ctx = FakeCtx()
+    await apply(ctx, ConfigChange(key="customer-journey", value=False))
 
     await apply(ctx, ConfigChange(key="customer-journey", value=True))
 
     assert ctx.is_enabled("customer-journey")
 
 
-async def test_resetting_a_flow_means_running():
-    # Absent from the registry means enabled, so "reset" and "resume" are the
-    # same operation — the sentinel has to mean that for both kinds of key.
-    ctx = FakeCtx("stock-refill")
+async def test_resetting_a_flow_drops_the_row_and_means_running(settings_db):
+    # Absent means running, so "reset" and "resume" land in the same place — the
+    # sentinel has to mean that for both kinds of key.
+    ctx = FakeCtx()
+    await apply(ctx, ConfigChange(key="stock-refill", value=False))
 
     result = await apply(ctx, ConfigChange(key="stock-refill"))
 
     assert result["running"] is True
     assert ctx.is_enabled("stock-refill")
+    assert settings_db.rows == []  # reset removes the row, it does not store True
 
 
 async def test_a_flow_refuses_a_value_that_is_not_a_switch_position():
@@ -130,7 +163,8 @@ async def test_an_unmounted_flow_is_reported_and_cannot_be_switched(monkeypatch)
 
 
 async def test_describe_reports_both_kinds_with_their_state():
-    ctx = FakeCtx("stock-refill")
+    ctx = FakeCtx()
+    await apply(ctx, ConfigChange(key="stock-refill", value=False))
 
     described = await describe(ctx, None)
 

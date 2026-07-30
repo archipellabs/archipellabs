@@ -43,15 +43,15 @@ wheels = [
 
 [[package]]
 name = "archipellabs-runtime"
-version = "0.3.1"
+version = "0.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "redis" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/24/1d/3c45b3ed8c8c4ae9a02456513ed2dc5126f1c79ffcc2e56b8e6636787e6b/archipellabs_runtime-0.3.1.tar.gz", hash = "sha256:d09f96dddba469563424bdba82baec1c51341808a9a940ef5bb3492771198c2e", size = 53009, upload-time = "2026-07-27T22:14:14.708Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/72/44226545d9bfaa3226a5e97372422407000033cc863bb2c7fc79c52325cf/archipellabs_runtime-0.3.2.tar.gz", hash = "sha256:297736c5252c0b85f038ca84c9da305b2ad2130c80b0af5631711a2745f27676", size = 54325, upload-time = "2026-07-30T17:09:32.048Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/6d/d58bd04033b95670dd2a5ab7e8e28fc652c6c45159f0905fd7dc8a40b5fe/archipellabs_runtime-0.3.1-py3-none-any.whl", hash = "sha256:8d652d2c8f3ecbcafbeb74e12b53f38891c22fa881857833fbcc7ca7899b4f90", size = 40812, upload-time = "2026-07-27T22:14:13.575Z" },
+    { url = "https://files.pythonhosted.org/packages/62/93/5a24727bc419310c60e888672a990ba3ed8e2099cd11146bf5c45b986990/archipellabs_runtime-0.3.2-py3-none-any.whl", hash = "sha256:aa2d2bf606416f09567af1ea5a429dd2389cb174a40d707b11c03b7d45ccffdb", size = 41479, upload-time = "2026-07-30T17:09:30.735Z" },
 ]
 
 [[package]]

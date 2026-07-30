@@ -67,6 +67,22 @@ final class Config
         return getenv('MATOMO_TOKEN') ?: '';
     }
 
+    /**
+     * The shop's own clock.
+     *
+     * One variable per package, not one shared for the stack: each has its own
+     * config file and its own installer, so a single value would have to be
+     * injected into three of them anyway. They are meant to agree — Matomo's
+     * MATOMO_SITE_TIMEZONE and the simulator's ARRIVAL_TIMEZONE — and nothing
+     * enforces it, which is exactly why this one must be a variable rather than
+     * a constant: a stack that moves the company to another city changes three
+     * env files and none of the code.
+     */
+    public function timezone(): string
+    {
+        return getenv('PS_TIMEZONE') ?: 'America/Chicago';
+    }
+
     private function required(string $name): string
     {
         $value = getenv($name);
