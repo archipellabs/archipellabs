@@ -12,7 +12,7 @@ one reloads it live without a restart.
 
 | Route | File | Direction | Trigger |
 |---|---|---|---|
-| `health` | `health.camel.yaml` | — | timer, every 30s |
+| `health` | `health.camel.yaml` | — | timer, every 30s (DEBUG) |
 | `carriers-from-file` → `carriers-reconcile` → `carriers-prune` | `carriers.camel.yaml` | ERP → shop | `carriers.csv` changes |
 | `suppliers-from-file` → `suppliers-reconcile` | `suppliers.camel.yaml` | ERP → shop | `suppliers.csv` changes |
 
@@ -24,10 +24,11 @@ carriers a prune pass — see *Built for the ERP that replaces the files* below.
 
 ### `health` — is the runtime alive?
 
-A timer logging a line every 30 seconds. Deliberately trivial and dependency-free:
-it is the smoke test for the container, the mount and the YAML loader, so when a
-real route misbehaves this is what says whether the runtime itself is healthy. If
-this is quiet, nothing else is worth debugging.
+A timer every 30 seconds, logged at **DEBUG**. Dependency-free on purpose: it is
+the smoke test for the container, the mount and the YAML loader, so when a real
+route misbehaves this says whether the runtime itself is healthy. Below INFO
+because a heartbeat is worth having and not worth reading — at INFO it is noise
+in the log someone opens to find out what actually happened.
 
 ### `suppliers-*` — who we buy from
 

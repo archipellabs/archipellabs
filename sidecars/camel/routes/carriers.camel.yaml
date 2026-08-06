@@ -1,3 +1,9 @@
+# Reconciliation events are emitted as JSON so they can be searched by field.
+# These three lines are the only record that a delivery row existed and was
+# removed — in prose they could only be found by guessing someone's wording, and
+# runs that grepped "ERROR|CRITICAL" concluded nothing had happened during an
+# outage. `operation`, `entity` and `reason` are the questions actually asked.
+#
 # Carriers — reconcile the shop's carriers with the ERP's master data.
 #
 # One row per (carrier, country): who we ship with, where, at what price. So
@@ -74,7 +80,7 @@
       uri: "direct:carriers-snapshot"
       steps:
         - log:
-            message: "carriers feed: ${body.size()} row(s)"
+            message: '{"event":"feed_read","entity":"carrier","source_rows":${body.size()}}'
         # A JSON copy for the prune's set difference, which compares the whole
         # snapshot against the whole shop and so cannot work row by row.
         - setProperty:
@@ -178,7 +184,7 @@
                                         <prestashop><delivery><id>${header.deliveryId}</id><price>${header.price}</price></delivery></prestashop>
                                   - toD: "{{shop.api}}/deliveries/${header.deliveryId}?httpMethod=PATCH&{{shop.auth}}"
                                   - log:
-                                      message: "delivery row ${header.deliveryId} updated: ${header.carrierName} / ${header.country} @ ${header.price} (active=${header.carrierActive}, delay=${header.delayDays}d)"
+                                      message: '{"event":"reconciliation_change","entity":"delivery","operation":"update","id":"${header.deliveryId}","carrier":"${header.carrierName}","country":"${header.country}","price":"${header.price}","active":"${header.carrierActive}","delay_days":"${header.delayDays}"}'
                             otherwise:
                               steps:
                                 # id_shop/id_shop_group explicit: PrestaShop's own
@@ -189,11 +195,11 @@
                                       <prestashop><delivery><id_carrier>${header.carrierShopId}</id_carrier><id_range_price>${header.rangeId}</id_range_price><id_range_weight>0</id_range_weight><id_zone>${header.zoneId}</id_zone><id_shop>1</id_shop><id_shop_group>1</id_shop_group><price>${header.price}</price></delivery></prestashop>
                                 - to: "{{shop.api}}/deliveries?httpMethod=POST&{{shop.auth}}"
                                 - log:
-                                    message: "delivery row created: ${header.carrierName} / ${header.country} (zone ${header.zoneId}) @ ${header.price}"
+                                    message: '{"event":"reconciliation_change","entity":"delivery","operation":"create","carrier":"${header.carrierName}","country":"${header.country}","zone":"${header.zoneId}","price":"${header.price}"}'
                   otherwise:
                     steps:
                       - log:
-                          message: "skipped ${header.carrierName} / ${header.country}: carrier, zone or price range not resolvable"
+                          message: '{"event":"reconciliation_skip","entity":"delivery","carrier":"${header.carrierName}","country":"${header.country}","reason":"carrier, zone or price range not resolvable"}'
 
         - to: "direct:carriers-prune"
 
@@ -278,7 +284,7 @@
               - simple: "${body} != ''"
                 steps:
                   - log:
-                      message: "deleting delivery rows absent from the feed: ${body}"
+                      message: '{"event":"reconciliation_change","entity":"delivery","operation":"delete","ids":"${body}","reason":"absent_from_source"}'
                   - split:
                       tokenize: ","
                       steps:

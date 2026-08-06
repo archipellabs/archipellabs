@@ -3,6 +3,12 @@
 # Deliberately trivial: it is the smoke test for the container, the mount and the
 # YAML loader, so it must never depend on anything outside this file. When a real
 # route misbehaves, this is what tells you whether the runtime itself is healthy.
+#
+# Logged at DEBUG, not INFO. At INFO it is two lines a minute of "nothing is
+# happening" in a log people read to find out what happened — and an analyst
+# grepping the integration for a change has to skip past it. A heartbeat is worth
+# having and not worth reading, so it stays available (`--logging-level=DEBUG`)
+# without being in the way.
 - route:
     id: health
     from:
@@ -11,4 +17,5 @@
         period: 30000
       steps:
         - log:
+            loggingLevel: DEBUG
             message: "integration layer alive — ${date:now:yyyy-MM-dd HH:mm:ss}"

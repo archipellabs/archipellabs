@@ -36,8 +36,12 @@ final class CreateAgentApiKey extends BaseStep
      * @var list<string>
      */
     private const RESOURCES = [
-        // sales
+        // sales, and the step before a sale — a cart records which address a
+        // shopper reached and whether an order ever followed, which is the only
+        // place the company can see where customers stop. Shop staff see carts;
+        // withholding them was the anomaly.
         'orders', 'order_details', 'order_states', 'order_histories', 'order_carriers',
+        'carts',
         // who and where
         'customers', 'addresses', 'countries', 'states', 'zones',
         // shipping — where the reference incident actually lands
