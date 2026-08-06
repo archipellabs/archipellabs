@@ -59,7 +59,10 @@ def ask(question: str, harness_name: str) -> dict[str, str]:
     harness = build(dataclasses.replace(load(AGENT), harness=harness_name))
     with tempfile.TemporaryDirectory() as scratch:
         workdir = pathlib.Path(scratch)
-        desk.prepare(DESK, workdir)
+        # **The driver lays the desk out**, not this fixture. It used to be the
+        # caller's job and was silently skipped in production for a while, which
+        # is why `investigate` does it now — preparing here as well copies the
+        # skills tree onto itself and fails before a model is ever reached.
         outcome = asyncio.run(harness.investigate(question, workdir))
     assert not outcome.error, outcome.error
     return outcome.answer
@@ -82,11 +85,11 @@ def test_the_shop_skill_reaches_the_shop(harness: str) -> None:
     `order_states` resource rather than a guessed path."""
     answer = ask(
         "Using the shop, what is the exact name of order state id 2? "
-        "Put that name verbatim in the summary field.",
+        "Put that name verbatim in the detected field.",
         harness,
     )
 
-    assert "payment accepted" in answer["summary"].lower()
+    assert "payment accepted" in answer["detected"].lower()
 
 
 def test_the_analytics_skill_reaches_matomo(harness: str) -> None:
@@ -95,11 +98,11 @@ def test_the_analytics_skill_reaches_matomo(harness: str) -> None:
     `API.getReportMetadata` and gets a list back."""
     answer = ask(
         "Using analytics, call the method that makes Matomo describe its own "
-        "reports, and put the number of reports it returned in the summary field.",
+        "reports, and put the number of reports it returned in the detected field.",
         harness,
     )
 
-    assert any(char.isdigit() for char in answer["summary"])
+    assert any(char.isdigit() for char in answer["detected"])
 
 
 def test_the_logs_skill_reaches_loki(harness: str) -> None:
@@ -113,22 +116,22 @@ def test_the_logs_skill_reaches_loki(harness: str) -> None:
     are meant to catch."""
     answer = ask(
         "Using the logs system, list every label that exists, then list the "
-        "values of the one that names the services. Put them in the summary.",
+        "values of the one that names the services. Put them in the detected field.",
         harness,
     )
 
-    assert "prestashop" in answer["summary"].lower()
+    assert "prestashop" in answer["detected"].lower()
 
 
 def test_the_feed_skill_reaches_the_erp_drop(harness: str) -> None:
     """No HTTP, no contract, and the only skill whose subject is an absence."""
     answer = ask(
         "Using the ERP feed, list the file names it holds. "
-        "Put them in the summary field.",
+        "Put them in the detected field.",
         harness,
     )
 
-    assert ".csv" in answer["summary"].lower()
+    assert ".csv" in answer["detected"].lower()
 
 
 def test_the_desk_carries_what_the_brief_promises() -> None:
