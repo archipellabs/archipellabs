@@ -50,8 +50,13 @@ services:
     # touches, so it never sees the simulator's PrestaShop/Redis secrets in
     # default.env. Served at the root of https://portal.archipellabs.test, so
     # there is no context path to configure.
+    # db.env for the activity database, default.env for REDIS_URL. The second is
+    # new and reverses what the note above used to say: the portal now reaches
+    # the agent bus, because the ask page exists to put a question to an employee
+    # and the employees live on it. Stated rather than quietly widened.
     env_file:
       - ./config/simulator/db.env
+      - ./config/simulator/default.env
     networks:
       - archipellabs_default_net
 

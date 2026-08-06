@@ -32,3 +32,11 @@ workspaces/*/volumes/
 # The public workspace is the production deployment config (real domains, secrets,
 # TLS wiring) — kept out of this open-source repo, unlike the local `default` one.
 workspaces/public/
+backup/
+
+# What investigations produce, not what they are made of: one record and one
+# workspace per run, and the workspace holds a copy of the whole desk. 124 MB
+# from a few days of asking. The graded artefacts a report cites live beside
+# that report, in research/runs/.
+agents/runs/
+agents/*/workspaces/
