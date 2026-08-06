@@ -70,7 +70,11 @@ async def test_guarded_routes_refuse_without_a_session(
 
 @pytest.mark.parametrize(("method", "path", "body"), GUARDED)
 async def test_guarded_routes_are_closed_when_no_password_is_set(
-    client: httpx.AsyncClient, no_password: None, method: str, path: str, body: dict | None
+    client: httpx.AsyncClient,
+    no_password: None,
+    method: str,
+    path: str,
+    body: dict | None,
 ) -> None:
     """Fail closed: an unconfigured portal shuts these rather than opening them."""
     async with client as http:
@@ -78,7 +82,9 @@ async def test_guarded_routes_are_closed_when_no_password_is_set(
     assert response.status_code == 503, f"{method} {path} was open with no password set"
 
 
-async def test_public_routes_stay_public(client: httpx.AsyncClient, password: str) -> None:
+async def test_public_routes_stay_public(
+    client: httpx.AsyncClient, password: str
+) -> None:
     """The read-only window is not behind the door."""
     async with client as http:
         assert (await http.get("/api/health")).status_code == 200
@@ -86,14 +92,18 @@ async def test_public_routes_stay_public(client: httpx.AsyncClient, password: st
         assert (await http.get("/api/session")).status_code == 200
 
 
-async def test_login_rejects_a_wrong_password(client: httpx.AsyncClient, password: str) -> None:
+async def test_login_rejects_a_wrong_password(
+    client: httpx.AsyncClient, password: str
+) -> None:
     async with client as http:
         response = await http.post("/api/login", json={"password": "not-it"})
     assert response.status_code == 401
     assert auth.COOKIE not in response.cookies
 
 
-async def test_login_then_reach_a_guarded_route(client: httpx.AsyncClient, password: str) -> None:
+async def test_login_then_reach_a_guarded_route(
+    client: httpx.AsyncClient, password: str
+) -> None:
     """The cookie the login sets is the one the guard accepts."""
     async with client as http:
         signed_in = await http.post("/api/login", json={"password": password})
@@ -111,7 +121,9 @@ async def test_login_then_reach_a_guarded_route(client: httpx.AsyncClient, passw
         assert (await http.get("/api/settings")).status_code == 502
 
 
-async def test_logout_closes_the_session(client: httpx.AsyncClient, password: str) -> None:
+async def test_logout_closes_the_session(
+    client: httpx.AsyncClient, password: str
+) -> None:
     async with client as http:
         await http.post("/api/login", json={"password": password})
         await http.post("/api/logout")
@@ -136,7 +148,9 @@ async def test_login_refuses_when_no_password_is_configured(
 ) -> None:
     """A blank password must not be satisfiable by a blank guess."""
     async with client as http:
-        assert (await http.post("/api/login", json={"password": " "})).status_code == 503
+        assert (
+            await http.post("/api/login", json={"password": " "})
+        ).status_code == 503
 
 
 def test_a_tampered_cookie_is_rejected(password: str) -> None:
@@ -144,7 +158,9 @@ def test_a_tampered_cookie_is_rejected(password: str) -> None:
     good = auth._sign(2_000_000_000)
     assert auth.valid(good)
     stamp, _, mac = good.partition(".")
-    assert not auth.valid(f"{int(stamp) + 3600}.{mac}"), "a rewritten expiry was accepted"
+    assert not auth.valid(f"{int(stamp) + 3600}.{mac}"), (
+        "a rewritten expiry was accepted"
+    )
     assert not auth.valid(f"{stamp}.{'0' * len(mac)}")
     assert not auth.valid("nonsense")
     assert not auth.valid(None)

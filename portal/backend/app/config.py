@@ -40,7 +40,9 @@ class Settings(BaseSettings):
     # money on a model, and /settings, which changes how the simulated company
     # behaves. Unset means those pages are closed to everyone rather than open to
     # everyone — see app/auth.py.
-    portal_password: str = Field(default="", validation_alias=AliasChoices("PORTAL_PASSWORD"))
+    portal_password: str = Field(
+        default="", validation_alias=AliasChoices("PORTAL_PASSWORD")
+    )
     # Whether those two pages ask at all. **True by default**, and switching it
     # off is a deliberate line in a deployment's own file rather than something
     # a missing variable does for you: the interesting failure here is a stack
@@ -54,11 +56,15 @@ class Settings(BaseSettings):
     # Signs the session cookie. Unset means a fresh key per process, so restarting
     # the portal signs everyone out; set it to keep sessions across a restart, and
     # to let more than one worker verify each other's cookies.
-    session_secret: str = Field(default="", validation_alias=AliasChoices("PORTAL_SESSION_SECRET"))
+    session_secret: str = Field(
+        default="", validation_alias=AliasChoices("PORTAL_SESSION_SECRET")
+    )
     # Send the session cookie only over TLS. False by default because local
     # development is http on localhost, where a Secure cookie is dropped without
     # a word and the login looks like it silently failed.
-    cookie_secure: bool = Field(default=False, validation_alias=AliasChoices("PORTAL_COOKIE_SECURE"))
+    cookie_secure: bool = Field(
+        default=False, validation_alias=AliasChoices("PORTAL_COOKIE_SECURE")
+    )
 
     # Where the log store answers, for the one component that exposes no endpoint
     # of its own: the integration runtime's liveness is visible only in the lines

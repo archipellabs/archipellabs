@@ -74,10 +74,24 @@ the trace rendered as one glyph repeated. Anything unmapped still lands on
 
 TELEMETRY = frozenset(
     {
-        "kind", "event", "reference", "agent", "run_id", "harness", "status",
-        "at", "transcript", "duration_ms", "tool_calls", "model_requests",
-        "input_tokens", "output_tokens", "reasoning_tokens", "cache_read_tokens",
-        "steps", "n",
+        "kind",
+        "event",
+        "reference",
+        "agent",
+        "run_id",
+        "harness",
+        "status",
+        "at",
+        "transcript",
+        "duration_ms",
+        "tool_calls",
+        "model_requests",
+        "input_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "cache_read_tokens",
+        "steps",
+        "n",
     }
 )
 """Envelope and measurement keys, stripped from what is shown as *the answer*.
@@ -146,7 +160,9 @@ class Requests:
         """
         return reference in self._heard
 
-    async def open(self, agent: str) -> tuple[str, asyncio.Queue[dict[str, Any] | None]]:
+    async def open(
+        self, agent: str
+    ) -> tuple[str, asyncio.Queue[dict[str, Any] | None]]:
         async with self._lock:
             if agent in self._busy:
                 raise Busy(f"{agent} is already working on a question")
@@ -178,7 +194,9 @@ class Requests:
             if self._busy.get(agent) == reference:
                 del self._busy[agent]
 
-    def queue_for(self, reference: str) -> "asyncio.Queue[dict[str, Any] | None] | None":
+    def queue_for(
+        self, reference: str
+    ) -> "asyncio.Queue[dict[str, Any] | None] | None":
         return self._queues.get(reference)
 
     def agent_for(self, reference: str) -> str | None:
@@ -496,9 +514,19 @@ def settled(result: dict[str, Any]) -> dict[str, Any]:
 
 
 SPENT = (
-    "run_id", "harness", "model", "effort", "duration_ms", "tool_calls",
-    "model_requests", "input_tokens", "output_tokens", "reasoning_tokens",
-    "cache_read_tokens", "cost", "estimated_cost",
+    "run_id",
+    "harness",
+    "model",
+    "effort",
+    "duration_ms",
+    "tool_calls",
+    "model_requests",
+    "input_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+    "cache_read_tokens",
+    "cost",
+    "estimated_cost",
 )
 """What a run consumed, as the envelope reports it.
 

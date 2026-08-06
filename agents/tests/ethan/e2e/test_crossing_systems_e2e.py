@@ -38,6 +38,7 @@ import zoneinfo
 import httpx
 import pytest
 
+from core.config import load
 from core.harness import desk
 from roles.ethan.identity import DESK
 
@@ -89,7 +90,11 @@ def shop_paid_orders(hour: datetime.datetime) -> int:
             "filter[valid]": "1",
             "display": "[id]",
         },
-        auth=(os.environ["SHOP_API_KEY"], ""),
+        # Through the loader, not the environment: the deployment names this
+        # `AGENT_API_KEY` and only the desk exports it to a subprocess under
+        # the skills' own spelling. A test measuring the truth is a caller
+        # like any other.
+        auth=(load().shop.api_key, ""),
         verify=ca(),
         timeout=30,
     )
@@ -200,7 +205,9 @@ def ask(question: str, _serving: object) -> dict[str, str]:
     """One investigation, requested the way any caller would request it."""
     done = subprocess.run(
         [str(desk.interpreter()), "-m", "tests.ethan.e2e.probe", question],
-        cwd=str(DESK.root.parent),
+        # From the project root, like everything else: `tests` is a package of
+        # the one project now, not of this employee's own directory.
+        cwd=str(AGENTS),
         capture_output=True,
         text=True,
         timeout=900,
@@ -245,10 +252,10 @@ def test_a_light_funnel_crosses_analytics_and_the_shop(
     answer = ask(
         f"For {window} {os.environ['SHOP_TIMEZONE']} time, report two figures: "
         "how many visits analytics recorded, and how many valid paid orders the "
-        "shop recorded. Put both numbers in the summary field.",
+        "shop recorded. Put both numbers in the detected field.",
         ethan_is_serving,
     )
-    reported = numbers(answer["summary"]) | numbers(answer["diagnosis"])
+    reported = numbers(answer["detected"]) | numbers(answer["diagnosis"])
 
     assert visits in reported, f"analytics said {visits}, answer had {reported}"
     assert orders in reported, f"the shop said {orders}, answer had {reported}"
@@ -266,10 +273,10 @@ def test_carriers_cross_the_erp_feed_and_the_shop(ethan_is_serving: object) -> N
 
     answer = ask(
         "List the carrier codes the ERP feed declares, and say for each whether "
-        "the shop has a matching carrier. Put the codes in the summary field.",
+        "the shop has a matching carrier. Put the codes in the detected field.",
         ethan_is_serving,
     )
-    summary = f"{answer['summary']} {answer['diagnosis']}".upper()
+    summary = f"{answer['detected']} {answer['diagnosis']}".upper()
 
     for code in codes:
         assert code in summary, f"{code} is in the feed and not in the answer"
@@ -297,10 +304,10 @@ def test_the_feed_grain_is_a_carrier_per_country(ethan_is_serving: object) -> No
     answer = ask(
         "In the ERP feed's carrier file, how many rows are there, and which "
         "countries do they cover? Put the row count and the countries in the "
-        "summary field.",
+        "detected field.",
         ethan_is_serving,
     )
-    summary = f"{answer['summary']} {answer['diagnosis']}".upper()
+    summary = f"{answer['detected']} {answer['diagnosis']}".upper()
 
     assert len(rows) in numbers(summary), f"{len(rows)} rows, answer: {summary[:200]}"
     for country in countries:

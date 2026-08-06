@@ -242,7 +242,9 @@ async def _reachable(client: httpx.AsyncClient, url: str) -> bool:
 
 async def _listening(host: str, port: int) -> bool:
     try:
-        _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=2.5)
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), timeout=2.5
+        )
     except Exception:
         return False
     writer.close()
@@ -259,8 +261,7 @@ async def _health() -> dict[str, str]:
     up = dict(zip(urls, reached, strict=True))
     status = {aid: ("up" if up.get(probe) else "down") for aid, probe in _PROBE.items()}
     status |= {
-        aid: ("up" if ok else "down")
-        for aid, ok in zip(_LISTENS, sockets, strict=True)
+        aid: ("up" if ok else "down") for aid, ok in zip(_LISTENS, sockets, strict=True)
     }
     return status | dict.fromkeys(_UNOBSERVABLE, "unknown")
 

@@ -165,7 +165,9 @@ async def write_setting(change: SettingChange, _: Guarded) -> dict:
         return await bus.apply_config(change.key, change.value)
     except Exception as error:  # noqa: BLE001 - the page is owed a reason
         log.warning("rejected setting %r: %s", change.key, error)
-        raise HTTPException(status_code=400, detail=f"{type(error).__name__}: {error}") from error
+        raise HTTPException(
+            status_code=400, detail=f"{type(error).__name__}: {error}"
+        ) from error
 
 
 @api.post("/ask", response_model=Asked)
@@ -179,7 +181,9 @@ async def ask(request: Ask, _: Guarded) -> Asked:
     wrong*.
     """
     if request.agent not in AGENTS:
-        raise HTTPException(status_code=404, detail=f"no analyst called {request.agent}")
+        raise HTTPException(
+            status_code=404, detail=f"no analyst called {request.agent}"
+        )
     try:
         reference, queue = await requests.open(request.agent)
     except Busy as busy:
@@ -209,7 +213,8 @@ async def ask(request: Ask, _: Guarded) -> Asked:
             return
         log.warning(
             "%s said nothing in %.0fs; freeing it — is its process running?",
-            request.agent, SILENT_AFTER,
+            request.agent,
+            SILENT_AFTER,
         )
         await requests.done(request.agent, reference)
         queue.put_nowait(
@@ -245,7 +250,9 @@ async def ask(request: Ask, _: Guarded) -> Asked:
             queue.put_nowait(settled(reply))
         except Exception as error:  # noqa: BLE001 - the reader is owed a reason
             log.exception("the call to %s failed", request.agent)
-            queue.put_nowait({"kind": "failed", "reason": f"{type(error).__name__}: {error}"})
+            queue.put_nowait(
+                {"kind": "failed", "reason": f"{type(error).__name__}: {error}"}
+            )
         finally:
             watchdog.cancel()
             # **The analyst is freed here, not when the reader leaves.** This
@@ -269,7 +276,9 @@ async def ask_events(reference: str, _: Guarded) -> StreamingResponse:
     """The live trace for one request, as server-sent events."""
     queue = requests.queue_for(reference)
     if queue is None:
-        raise HTTPException(status_code=404, detail="no such request, or it has finished")
+        raise HTTPException(
+            status_code=404, detail="no such request, or it has finished"
+        )
 
     async def body() -> AsyncIterator[str]:
         agent = requests.agent_for(reference) or ""
