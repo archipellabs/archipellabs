@@ -93,6 +93,11 @@ system. Trusting the company's CA is what a real employee's machine does;
 `--insecure` is what somebody does at 2am and never removes.
 
 A relative name: commands run with the workspace as their working directory.
+
+The **default**, not the only answer — `ShopConfig.ca` overrides it, and a
+deployment whose certificate is publicly signed must override it, since this
+file would then be the wrong CA and every call would fail verification in a way
+indistinguishable from the shop being down.
 """
 
 
@@ -225,7 +230,10 @@ def company_env(desk: Desk, config: Config) -> dict[str, str]:
     # paid that toll, and no test could see it: the contract suite runs commands
     # in an ordinary shell, and the functional suite reads only the answer.
     given["PATH"] = os.environ.get("PATH", "")
-    given["COMPANY_CA"] = CA_FILE
+    # The desk's own file by default, and whatever the deployment configured when
+    # it says so — a shop behind a publicly-signed certificate points this at the
+    # system trust store, because the desk's CA would be the wrong one.
+    given["COMPANY_CA"] = config.shop.ca or CA_FILE
     return given
 
 

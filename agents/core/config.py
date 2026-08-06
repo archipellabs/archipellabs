@@ -133,6 +133,20 @@ class ShopConfig:
     concluded orders had stopped five hours earlier — they were minutes old. Must
     match PS_TIMEZONE in the shop's own environment."""
 
+    ca: str = ""
+    """What `--cacert` should trust, as `$COMPANY_CA`. Empty means the desk's own
+    `company-ca.crt`.
+
+    The skills pin `--cacert "$COMPANY_CA"` rather than trusting whatever the
+    system trusts, because the local company answers on `.test` names behind a
+    self-signed certificate and plain `curl` reads as an unreachable system.
+
+    Pinning cuts the other way on a deployment whose certificate is signed by a
+    public authority: the desk's file is then the *wrong* CA, every call fails
+    verification, and it fails identically to the shop being down. Such a
+    deployment sets this to its trust store — `/etc/ssl/certs/ca-certificates.crt`
+    in this image — which makes the pin equivalent to ordinary verification."""
+
 
 @dataclass(frozen=True)
 class MatomoConfig:
@@ -274,6 +288,7 @@ def load(agent: str = "") -> Config:
             base_url=_env("SHOP_API_URL", "https://shop.archipellabs.test/api"),
             api_key=_env("AGENT_API_KEY"),
             timezone=_env("SHOP_TIMEZONE", "America/Chicago"),
+            ca=_env("COMPANY_CA"),
         ),
         matomo=MatomoConfig(
             base_url=_env("MATOMO_URL", "https://tracking.archipellabs.test"),

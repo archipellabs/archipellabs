@@ -11,6 +11,7 @@ is the employee's — `identity.build` picks a driver from its own configuration
 and a shared package that decided it would be deciding what distinguishes them.
 """
 
+import dataclasses
 import inspect
 import json
 import pathlib
@@ -27,7 +28,7 @@ from core.config import (
 from core.harness import codex, opencode_cli
 from core.harness.codex import CodexHarness
 from core.harness.codex import _usage as codex_usage
-from core.harness.desk import CA_FILE, DATA, Desk, prepare
+from core.harness.desk import CA_FILE, DATA, Desk, company_env, prepare
 from core.harness.opencode_api import usage as opencode_usage
 from core.harness.opencode_api import verdict as _verdict
 from core.harness.opencode_cli import OpencodeHarness
@@ -329,3 +330,31 @@ def test_the_desk_is_laid_out_before_the_loop_starts(tmp_path) -> None:
 
     assert "prepare(self._desk, workdir)" in inspect.getsource(codex)
     assert "prepare(self._desk, workdir)" in inspect.getsource(opencode_cli)
+
+
+def test_the_certificate_to_trust_is_the_desk_s_until_a_deployment_says_otherwise() -> (
+    None
+):
+    """Every skill pins `--cacert "$COMPANY_CA"`, so this one variable decides
+    whether ~50 curl invocations verify or fail.
+
+    Pinning is right where the company answers on `.test` names behind its own
+    self-signed certificate: plain `curl` would fail and an agent reads that as
+    an unreachable system. It is wrong the moment a deployment's certificate is
+    signed by a public authority — the desk's file is then simply the wrong CA,
+    and the failure is indistinguishable from the shop being down, which is the
+    single most expensive way for this to break: an investigation that concludes
+    the storefront is unreachable is confident, wrong, and costs a full run.
+
+    The alternative considered was `-k` in every skill. It buys the same
+    reachability and gives up the ability to notice an expired or swapped
+    certificate — and it teaches the behaviour this lab exists to observe, since
+    a skill is a worked example an employee copies verbatim.
+    """
+    assert company_env(DESK, config())["COMPANY_CA"] == CA_FILE
+
+    store = "/etc/ssl/certs/ca-certificates.crt"
+    base = config()
+    deployed = dataclasses.replace(base, shop=dataclasses.replace(base.shop, ca=store))
+
+    assert company_env(DESK, deployed)["COMPANY_CA"] == store
