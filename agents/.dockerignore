@@ -1,0 +1,18 @@
+# The seven projects before they became one. 2.2 GB, and none of it is the
+# image's business.
+backup/
+
+# Never in the image: it holds a live model key, and the deployment supplies the
+# environment through compose instead.
+.env
+
+# Evidence from local runs. The image gets its own directory on a volume.
+runs/
+workspaces/
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

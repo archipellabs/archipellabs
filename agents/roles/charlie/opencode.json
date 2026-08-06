@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "archipel": {
+      "type": "local",
+      "enabled": true,
+      "command": ["python", "-m", "roles.charlie.mcp_server"]
+    }
+  },
+  "permission": {
+    "bash": "deny",
+    "edit": "deny",
+    "webfetch": "deny"
+  }
+}

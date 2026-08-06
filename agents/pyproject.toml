@@ -1,0 +1,76 @@
+[project]
+name = "archipellabs-agents"
+version = "0.1.0"
+description = "The simulated company's analysts — one project, one environment, one image."
+# 3.14 because that is what every agent's virtualenv already ran and what the
+# image ships. The seven manifests said >=3.12, a compatibility nothing had
+# exercised in months.
+requires-python = ">=3.14"
+
+# Floors are the versions actually resolved, not the ones each project was first
+# written against. `mcp>=1.2` and `paramiko>=3.4` permitted resolutions two
+# majors behind what every agent had been running — legal, and broken in a way
+# that would have looked like anything but a dependency.
+dependencies = [
+    "archipellabs-runtime>=0.3.2,<0.4",
+    "httpx>=0.28",
+    "mcp>=2.0",
+    "paramiko>=5.0",
+    "pydantic>=2.13",
+    "pydantic-ai-slim[openai]>=2.25",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = ["mypy>=1.18", "pytest>=9", "pytest-asyncio>=1.4", "ruff>=0.16"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]
+# Seven suites now sit side by side and several share a file name —
+# `test_identity_unit.py` exists for four employees. Under the default import
+# mode pytest names a module by its basename, so the second one collected is
+# read as a re-import of the first and the whole run fails to collect. importlib
+# mode names them by their full path, which is what keeps this working without
+# scattering `__init__.py` through a tree that deliberately has none.
+addopts = "--import-mode=importlib"
+markers = [
+    "live: needs the stack up — talks to the real PrestaShop at SHOP_API_URL. Deselected by default with -m 'not live'.",
+    "functional: drives a real harness against the running company. Needs the stack up and a model. Run with -m functional.",
+    "contract: runs the commands the skills document, straight against the systems. Needs the stack up, no model. Run with -m contract.",
+    "e2e: a question no single system can answer. The test measures the truth itself, then checks the agent against it. Run with -m e2e.",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.14"
+files = ["core", "roles"]
+# The desks are material, not code: their scripts are copied into a run's
+# workspace and executed by the model, never imported by the agent. They were
+# outside the old `files = ["src"]` for the same reason, and philip's and
+# ethan's carry a `feed.py` each — two modules of one name, which is a collision
+# only because they are now siblings.
+exclude = "^roles/[^/]+/desk/"
+mypy_path = "."
+namespace_packages = true
+explicit_package_bases = true
+# `strict` was `_core`'s setting and `disallow_untyped_defs` was the agents'.
+# Kept at the stricter of the two: the shared machinery is now in the same
+# checking run as the code that calls it, and relaxing to the looser setting
+# would have quietly stopped checking the part that was checked hardest.
+strict = true
+
+[[tool.mypy.overrides]]
+# paramiko ships no type stubs and types-paramiko lags its releases.
+module = ["paramiko.*"]
+ignore_missing_imports = true
