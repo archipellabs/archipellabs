@@ -3,7 +3,7 @@
 import math
 import random
 from datetime import datetime
-from typing import Self
+from typing import Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -65,7 +65,33 @@ class RateConfig(BaseModel):
 
     The weekly/daily shape is fixed in the module constants
     (DAY_OF_WEEK_MULTIPLIER / HOURLY_MULTIPLIER). This holds only what varies by
-    shop or scenario: base rate, timezone, and the noise band.
+    shop or scenario: the profile, base rate, timezone, and the noise band.
+    """
+
+    profile: Literal["curve", "flat"] = "curve"
+    """The shape of the rate: does it follow the clock, or hold level?
+
+    Named for the shape rather than the period, and `curve` is the word this
+    module already used — the constants below are "shape curves", and the
+    scheduler calls its own copy `curve`. `daily` would have named only half of
+    it, since the weekday multiplier matters as much as the hour.
+
+    `curve` is the shop being simulated: traffic rises and falls with the hour
+    and the weekday, which is what makes the company look like a company.
+
+    `flat` exists for **experiments**. Under `curve`, two campaigns launched four
+    hours apart meet different shops — a Tuesday afternoon and a Tuesday night
+    differ by more than 5× here — so their results are not comparable, and this
+    lab spent a session discovering that the shop's state was often the dominant
+    variable. Under `flat` the expected rate is the base rate at any hour of any
+    day, and **Poisson is the only source of variation left**: the day-of-week
+    multiplier, the hourly multiplier and the uniform noise band are all
+    bypassed.
+
+    `flat` describes the *rate*, not the traffic. Arrivals still vary run to run
+    — a simulation that produced identical traffic would not be one. What it
+    buys is two runs *drawn from the same distribution*, which is what a
+    comparison needs.
     """
 
     base_arrivals_per_minute: float = Field(default=3.0, ge=0)
@@ -104,6 +130,17 @@ def arrivals_per_minute(
     rng: random.Random,
 ) -> float:
     """Calculate the current arrival rate."""
+
+    if config.profile == "flat":
+        # No clock, no noise. The caller still samples Poisson around this, so
+        # arrivals vary — but two runs launched hours apart are now drawn from
+        # the same distribution, which is what makes them comparable.
+        #
+        # `rng` is deliberately not touched here. Consuming a draw only in the
+        # other branch would make the two profiles diverge in the identity pool
+        # and the journey choices as well, so a `flat` run would differ from a
+        # `curve` one by more than its arrival rate.
+        return config.base_arrivals_per_minute
 
     local_now = localize(now, config)
     day_name = DAY_NAMES[local_now.weekday()]

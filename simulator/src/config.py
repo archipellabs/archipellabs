@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -86,6 +86,14 @@ class Settings(BaseSettings):
     *active* country in the shop, or its customers cannot check out."""
     tick_seconds: float = 5.0
     base_arrivals_per_minute: NonNegativeFiniteFloat = 3.0
+    arrival_profile: Literal["curve", "flat"] = "curve"
+    """The shape of the arrival rate: following the clock, or held level.
+
+    `curve` is the shop being simulated. `flat` is for experiments: under the
+    curve, two campaigns launched hours apart meet shops that differ by more than
+    5x, so their results are not comparable — and the shop's state has more than
+    once turned out to be the dominant variable in a measurement. `flat` is the
+    rate, not the traffic: Poisson remains, and is then the only variation."""
     # Daily/hourly traffic curves follow the simulated market's local clock.
     arrival_timezone: str = "America/Chicago"
     max_arrivals_per_tick: NonNegativeInt = 1000

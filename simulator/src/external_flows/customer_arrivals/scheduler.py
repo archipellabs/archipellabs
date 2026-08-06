@@ -46,7 +46,10 @@ async def arrivals_lifespan(config: Config) -> AsyncIterator[Resources]:
     # The shape of the curve — timezone and noise band — is fixed for the run. The
     # base rate rides on top of it and is re-read every tick, so it is left at the
     # model's default here rather than seeded from a second source.
-    rate = RateConfig(timezone=configuration.get("arrival_timezone"))
+    rate = RateConfig(
+        profile=configuration.get("arrival_profile"),
+        timezone=configuration.get("arrival_timezone"),
+    )
     identities = IdentityPool(rng=rng, markets=configuration.get("market_mix"))
     yield {"rate": rate, "identities": identities, "rng": rng}
 
@@ -65,6 +68,10 @@ async def tick(ctx: Context) -> None:
     curve: RateConfig = ctx.resources["rate"]
     rate = RateConfig(
         base_arrivals_per_minute=configuration.get("base_arrivals_per_minute"),
+        # The shape is fixed for the run — profile, timezone and noise band are
+        # read once at lifespan. Only the base rate is re-read, so a campaign
+        # cannot have the curve change under it halfway through.
+        profile=curve.profile,
         timezone=curve.timezone,
         noise_min=curve.noise_min,
         noise_max=curve.noise_max,
