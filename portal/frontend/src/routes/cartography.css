@@ -6,7 +6,7 @@
 .carto-stage {
   position: relative;
   width: 1010px;
-  height: 1140px;
+  height: 1530px;
   margin-inline: auto;
 }
 
@@ -354,4 +354,71 @@
   cursor: pointer;
   color: var(--color-text-muted);
   font-size: 18px;
+}
+
+/* platform cards — the live card with the picture taken out.
+   The height is fixed rather than derived from the content because the arrows
+   in Cartography.tsx are hand-routed against these boxes: a card that grew by a
+   line would leave every lane in this band pointing at nothing. */
+.carto-card.platform {
+  height: 92px;
+  padding: 11px;
+  border: 1px solid var(--color-line);
+  border-radius: 3px;
+  box-shadow: var(--shadow-sm);
+  transition: 0.15s;
+  cursor: pointer;
+}
+.carto-card.platform:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.carto-card.platform .carto-hd b {
+  font-size: 13px;
+}
+.carto-card.platform .carto-sub {
+  margin: 3px 0 0;
+  font-size: 11px;
+}
+.carto-card.platform .carto-btns {
+  margin-top: 9px;
+  gap: 6px;
+}
+/* Two buttons have to share 128px of inner width here. At the shared size they
+   came to about 148 and "Sign in ↗" broke over two lines. */
+.carto-card.platform .carto-btn {
+  padding: 5px 8px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+/* in the phone list the cards flow, so the fixed height would clip them */
+.carto-list .carto-card.platform {
+  height: auto;
+}
+/* live, and with no way from here to ask. Not green (unchecked) and not red
+   (a fault that is not there) — see _UNOBSERVABLE in the backend. */
+.carto-dot.unknown {
+  background: var(--slate-400);
+}
+
+/* What is still missing about getting into a component. Its own box rather than
+   a line in the credentials one: this is a note about the lab, not something to
+   copy, and the cards it replaces offered "<TODO>" beside a copy button. */
+.carto-todo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: 3px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.carto-todo-tag {
+  flex: none;
+  color: var(--brass-500);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
 }

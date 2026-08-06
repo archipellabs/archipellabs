@@ -1,0 +1,57 @@
+/* The sign-in gate on the two pages that are not read-only.
+   Deliberately plain: it is a door, not a destination. */
+
+.guard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 34rem;
+  margin: var(--space-2xl) auto;
+  padding: var(--space-xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.guard-form {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.guard-input {
+  flex: 1;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+}
+
+.guard-input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.guard-submit {
+  padding: 0.55rem 1rem;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand-border);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.guard-submit:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+}
+
+.guard-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
