@@ -227,7 +227,7 @@ Worth revisiting when either lands:
 - **products or categories become feed-driven** — that is where building XML by
   hand in YAML gets genuinely painful and JSON + `PATCH` pays for itself;
 - **agents need scoped access to the shop** — OAuth2 scopes are a real credential
-  boundary, which is what `doc/agent-org-lab.md` §7 argues access must be. Basic
+  boundary. Basic
   auth cannot express one.
 
 ## PrestaShop's Webservice: four traps, all silent
@@ -289,8 +289,7 @@ unfixed, and has been observed rather than predicted: **renaming a row in the
 feed creates a second record in the shop**, leaving the original orphaned.
 
 The fix is not a cleverer field to match on — it is a cross-reference of our own
-(`source_id → shop_id`), which needs the store described in
-`doc/agent-org-lab.md` §4. Until then this is an interim with a known defect,
+(`source_id → shop_id`). Until then this is an interim with a known defect,
 not a finished design.
 
 ## Working on routes

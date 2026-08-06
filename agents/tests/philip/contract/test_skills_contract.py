@@ -28,6 +28,7 @@ import subprocess
 
 import pytest
 
+from core.config import load
 from core.harness import desk
 from roles.philip.identity import DESK
 
@@ -155,7 +156,10 @@ def test_a_documented_command_runs(
     skill: str, command: str, workdir: pathlib.Path
 ) -> None:
     """Every command a skill offers must work against the real system."""
-    env = {**os.environ, **desk.company_env(DESK)}
+    # Built from the resolved configuration, like the drivers do: the
+    # deployment names the shop's key `AGENT_API_KEY` and the skills go on
+    # saying `$SHOP_API_KEY`. This is where the two meet.
+    env = {**os.environ, **desk.company_env(DESK, load("philip"))}
     done = subprocess.run(
         ["bash", "-c", command],
         cwd=workdir,

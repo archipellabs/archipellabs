@@ -22,11 +22,19 @@ TimberWorks is a few cooperating pieces:
 | **Simulator** | [`simulator/`](simulator/) | A Python producer/consumer app (Redis Streams + Playwright) that generates synthetic customer traffic and keeps the catalog and stock reconciled. No HTTP server — it is a runtime `App`. |
 | **E-commerce workspace** | [`workspaces/default/`](workspaces/default/) | The Dockerized stack: PrestaShop + MySQL + Redis behind an nginx TLS gateway, with Matomo analytics and the activity database. |
 | **Portal** | [`portal/`](portal/) | A FastAPI + React app serving journey analytics and a live cartography of the stack over the activity database. |
-| **Setup sidecars** | [`sidecars/`](sidecars/) | Zero-dependency provisioning/install code — a PrestaShop CLI (ordered, idempotent steps) + a headless Matomo installer — run once as containers and shared across workspaces. |
+| **Sidecars** | [`sidecars/`](sidecars/) | Code that runs beside the stack rather than in it. Two are run-once provisioners (a PrestaShop CLI of ordered, idempotent steps; a headless Matomo installer); two are long-lived — Apache Camel carrying master data, and the ERP's own file drop over SFTP. |
+| **Employees** | [`agents/`](agents/) | Six AI analysts (plus a model-free test double) that investigate the company through its own systems — the shop's API, the analytics, the logs, the ERP drop. One project, one image; `AGENT_NAME` decides who a container is. |
 
 The simulator and the storefront are deliberately decoupled: the simulator drives
 the shop only through its public front-end (Playwright) and its APIs (Webservice +
 Admin API), never through shared code or a shared database.
+
+**The employees are decoupled the same way, and for a stronger reason.** They
+reach the company only as an employee would — through its APIs, its logs and its
+file drop — and never through the simulator's activity database, which records
+what each simulated customer *intended* and would be an answer key. What is being
+measured is whether a company can be understood from the outside; a shortcut
+through the instrument would measure nothing.
 
 ## Repository layout
 
@@ -36,6 +44,12 @@ portal/                           analytics + cartography UI over the activity D
 sidecars/                         run-once provisioning/install code, shared across workspaces
   prestashop/                     PHP CLI: turns a fresh PrestaShop install into the TimberWorks shop
   matomo/                         headless Matomo installer
+  camel/                          the integration runtime: routes carrying master data from the ERP to the shop
+  erpfile/                        the ERP's master data as CSV files, served over SFTP
+agents/                           the AI employees — one project, one lock, one image
+  core/                           the machinery they share: config, harnesses, the envelope, the bus mount
+  roles/                          one directory per employee; `AGENT_NAME` picks which a process serves
+  Dockerfile                      the single image (Python + the codex and opencode CLIs)
 workspaces/default/               the local demo stack
   docker-compose.yaml             entrypoint — creates the network, brings up the stacks + gateway
   docker-compose-ecommerce.yaml   storefront: PrestaShop, MySQL, Redis, provisioning sidecar
@@ -44,6 +58,7 @@ workspaces/default/               the local demo stack
   docker-compose-integration.yaml the ESB: Apache Camel, carrying master data from the ERP to the shop
   docker-compose-erp.yaml         the ERP: master data as files, served over SFTP
   docker-compose-monitoring.yaml  logs, metrics and uptime (Alloy, Loki, Prometheus, Grafana) — company systems only
+  docker-compose-agents.yaml      the AI employees — run separately, because they cost money
   config/                         stack config: gateway (nginx + certs), demo secrets (env files)
   doc/                            TimberWorks brand: design.md, lore.md
   volumes/                        runtime data — DBs + PrestaShop web root (gitignored)
@@ -126,6 +141,19 @@ scattered inline:
   — what the simulator container reads. **`simulator/.env`** (gitignored) is the
   same config for a host-run simulator; its API secrets must match
   `prestashop/default.env`.
+- **[`workspaces/default/config/agents/default.env`](workspaces/default/config/agents/default.env)**
+  — what the employees read in-network: service names rather than the published
+  ports a host process would use. **`agents/.env`** (gitignored) is the same
+  config for running them from source.
+- **[`workspaces/default/config/matomo/default.env`](workspaces/default/config/matomo/default.env)**
+  and **[`config/monitoring/default.env`](workspaces/default/config/monitoring/default.env)**
+  — the analytics and observability stacks.
+
+**Three things are deliberately not committed anywhere**, and the agents' file
+says so where it would otherwise carry them: the shop's Webservice key, the
+Matomo token, and the model provider's key — the one that costs money. They go in
+a `.env` beside the committed defaults, which the compose reads as an optional
+second layer.
 
 > ⚠️ **These are demo-only credentials for the local stack.** They are safe to
 > commit *because they protect nothing real* (localhost, self-signed TLS, no

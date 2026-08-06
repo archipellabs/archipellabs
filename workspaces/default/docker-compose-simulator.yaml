@@ -46,17 +46,25 @@ services:
     restart: unless-stopped
     depends_on:
       - simulatordb
-    # Loads only db.env (shared with simulatordb) — the activity DB is all the portal
-    # touches, so it never sees the simulator's PrestaShop/Redis secrets in
-    # default.env. Served at the root of https://portal.archipellabs.test, so
-    # there is no context path to configure.
-    # db.env for the activity database, default.env for REDIS_URL. The second is
-    # new and reverses what the note above used to say: the portal now reaches
-    # the agent bus, because the ask page exists to put a question to an employee
-    # and the employees live on it. Stated rather than quietly widened.
+    # db.env for the activity database, and the portal's own file for the bus and
+    # the URLs its cards open. Served at the root of
+    # https://portal.archipellabs.test, so there is no context path.
+    #
+    # **It no longer reads the simulator's `default.env`.** That was added to give
+    # it one variable, `REDIS_URL`, and handed it the shop's write-capable
+    # Webservice key and OAuth client secret along with it — while the comment
+    # here still claimed the portal never saw them. The portal reads the activity
+    # database and calls employees; nothing it does needs a credential that can
+    # change the shop.
     env_file:
       - ./config/simulator/db.env
-      - ./config/simulator/default.env
+      - ./config/portal/default.env
+      # The portal's own secrets — its password, and nothing else. **Not the
+      # agents' file**: that one carries the model provider's key, and the
+      # portal has no business holding it. A deployment that could only open
+      # /ask by editing a committed file would have nowhere safe to put one.
+      - path: ./config/portal/.env
+        required: false
     networks:
       - archipellabs_default_net
 

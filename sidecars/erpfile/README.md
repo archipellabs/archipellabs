@@ -38,8 +38,7 @@ human-readable code. The id is the identity; the code and the name are labels.
 carriers have a usable custom field — so the integration matches on `name`.
 Renaming a row in the feed therefore creates a *second* record in the shop rather
 than updating the first. Observed, not theorised. The fix is a cross-reference of
-our own (`source_id → shop_id`), which needs the store in
-`doc/agent-org-lab.md` §4.
+our own (`source_id → shop_id`).
 
 Note `XBORDER` shares one `carrier_id` across two rows: the natural key is
 *(carrier_id, country)*, one row per country served.
@@ -74,5 +73,5 @@ Two levers, two different incidents:
 
 So a change to the company's master data is **a diff in version control**,
 including a deliberately broken one: the reference incident in
-`doc/agent-org-lab.md` §2 arrives with an author, a timestamp and a diff, exactly
+the lab's reference incident arrives with an author, a timestamp and a diff, exactly
 as a real master-data change would.

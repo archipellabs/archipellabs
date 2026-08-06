@@ -104,7 +104,14 @@ Guarded = Annotated[None, Depends(auth.require_session)]
 @api.get("/session", response_model=SessionState)
 async def session(portal_session: auth.Session = None) -> SessionState:
     """Unguarded on purpose — this is how a page asks whether it needs the door."""
-    return SessionState(signed_in=auth.valid(portal_session), configured=auth.configured())
+    # `signed_in` is true when nothing is being asked: the question the page is
+    # really putting is "may I render", and with auth off the answer is yes.
+    # `required` carries the distinction for anything that needs it.
+    return SessionState(
+        signed_in=not auth.required() or auth.valid(portal_session),
+        configured=auth.configured(),
+        required=auth.required(),
+    )
 
 
 @api.post("/login", response_model=SessionState)
@@ -119,13 +126,17 @@ async def login(request: Login, response: Response) -> SessionState:
         # measuring: there is one secret and the comparison is constant-time.
         raise HTTPException(status_code=401, detail="that is not the password")
     auth.issue(response)
-    return SessionState(signed_in=True, configured=True)
+    return SessionState(signed_in=True, configured=True, required=auth.required())
 
 
 @api.post("/logout", response_model=SessionState)
 async def logout(response: Response) -> SessionState:
     auth.revoke(response)
-    return SessionState(signed_in=False, configured=auth.configured())
+    return SessionState(
+        signed_in=not auth.required(),
+        configured=auth.configured(),
+        required=auth.required(),
+    )
 
 
 @api.get("/settings")

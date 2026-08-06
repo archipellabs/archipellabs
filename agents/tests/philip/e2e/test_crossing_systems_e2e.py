@@ -29,6 +29,7 @@ import datetime
 import io
 import json
 import os
+import pathlib
 import re
 import subprocess
 import time
@@ -39,6 +40,9 @@ import pytest
 
 from core.harness import desk
 from roles.philip.identity import DESK
+
+AGENTS = pathlib.Path(__file__).resolve().parents[3]
+"""The one project root — what the employee is started from."""
 
 pytestmark = pytest.mark.e2e
 
@@ -150,9 +154,13 @@ def philip_is_serving() -> object:
     Started rather than assumed: a test suite that needs you to remember to
     launch something is a suite that gets run wrong once and mistrusted after.
     """
+    # One entry point for every employee, chosen by `AGENT_NAME`. It was
+    # `src.app` in this employee's own directory, back when there were seven of
+    # those and seven projects to hold them.
     process = subprocess.Popen(
-        [str(desk.interpreter()), "-m", "src.app"],
-        cwd=str(DESK.root.parent),
+        [str(desk.interpreter()), "-m", "core.main"],
+        cwd=str(AGENTS),
+        env={**os.environ, "AGENT_NAME": "philip"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True,
@@ -178,7 +186,7 @@ def philip_is_serving() -> object:
 
 
 def _action_stream_exists() -> bool:
-    namespace = os.getenv("REDIS_NAMESPACE", "")
+    namespace = os.getenv("AGENT_NAMESPACE", "sim")
     prefix = f"{namespace}:" if namespace else ""
     done = subprocess.run(
         ["docker", "exec", "redis", "redis-cli", "EXISTS",
@@ -191,7 +199,7 @@ def _action_stream_exists() -> bool:
 def ask(question: str, _serving: object) -> dict[str, str]:
     """One investigation, requested the way any caller would request it."""
     done = subprocess.run(
-        [str(desk.interpreter()), "-m", "tests.e2e.probe", question],
+        [str(desk.interpreter()), "-m", "tests.philip.e2e.probe", question],
         cwd=str(DESK.root.parent),
         capture_output=True,
         text=True,
@@ -202,7 +210,10 @@ def ask(question: str, _serving: object) -> dict[str, str]:
     )
     assert line, f"the probe printed no answer: {done.stderr[-500:]}"
     reply = json.loads(line)
-    assert reply.get("status") == "answered", reply
+    # `completed` — the envelope has three statuses and "answered" is not
+    # one of them; see `core.run`. A failed or crashed run carries an
+    # `error` instead of an answer, which is what this is guarding.
+    assert reply.get("status") == "completed", reply
     return reply["answer"]
 
 

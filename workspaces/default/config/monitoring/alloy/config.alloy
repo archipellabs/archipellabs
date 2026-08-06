@@ -1,7 +1,7 @@
 // Alloy — collects container logs and ships them to Loki.
 //
 // THIS FILE IS THE SECURITY BOUNDARY. The agent investigates from these logs, so
-// what is collected here is exactly what it can see (doc/agent-org-lab.md §4).
+// what is collected here is exactly what it can see (the company is watched; the instrument is not).
 //
 // The rule is DEFAULT-DENY: an explicit allowlist of the company's own systems,
 // everything else dropped. That matters for one container in particular — the
@@ -69,7 +69,7 @@ loki.write "default" {
 //
 // The COMPANY's databases only. The simulator's Postgres is absent for the same
 // reason its logs are: it is the instrument, and it knows the answer
-// (doc/agent-org-lab.md §4).
+// (the company is watched; the instrument is not).
 
 // `slave_status` is disabled on both: it issues SHOW SLAVE STATUS, which MySQL 9
 // removed in favour of SHOW REPLICA STATUS. Left on, it fails every scrape

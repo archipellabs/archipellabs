@@ -8,7 +8,7 @@
 #
 # One row per (carrier, country): who we ship with, where, at what price. So
 # removing a country is removing a line, which is the reference incident in
-# doc/agent-org-lab.md §2.
+# the lab's reference incident.
 #
 # FULL SNAPSHOT, LOADED AS A MERGE. The file is the whole truth, not a set of
 # changes, so the shop is made to match it. There are two textbook ways to load a

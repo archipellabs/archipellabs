@@ -77,6 +77,9 @@ class Session(BaseModel):
 
     signed_in: bool
     configured: bool
+    required: bool
+    """Whether this deployment asks at all. False means the two pages are open,
+    and the browser should render them rather than a form nothing would accept."""
 
 
 class SettingChange(BaseModel):

@@ -85,6 +85,11 @@ export const getCartography = () => get<Cartography>("/api/cartography");
 export interface SessionState {
   signed_in: boolean;
   configured: boolean;
+  /** Whether this deployment asks at all. `PORTAL_AUTH_ENABLED=false` opens the
+   *  two pages to whoever can reach the port, which on a local stack is the
+   *  operator and nobody else. Reported rather than inferred, so the header can
+   *  drop a sign-out button that would do nothing. */
+  required: boolean;
 }
 
 /** The message a failed request carries, or a fallback naming the status.

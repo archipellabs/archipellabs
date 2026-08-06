@@ -26,7 +26,7 @@ from roles.angel.tools import bounded, workspace
 
 DATA_DIR = pathlib.Path(
     os.getenv("AGENT_DATA_DIR")
-    or pathlib.Path(__file__).resolve().parents[2] / "datasets"
+    or pathlib.Path(__file__).resolve().parents[1] / "datasets"
 )
 """Where datasets live when no investigation is running."""
 

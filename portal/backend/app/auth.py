@@ -118,6 +118,17 @@ def configured() -> bool:
     return bool(settings.portal_password)
 
 
+def required() -> bool:
+    """Whether the two guarded pages ask for anything at all.
+
+    Off, they are open to whoever can reach the port — which on a local stack is
+    the operator and nobody else. It is reported to the page rather than
+    inferred, so a browser shows the pages instead of a sign-in form nothing
+    would accept.
+    """
+    return settings.auth_enabled
+
+
 Session = Annotated[str | None, Cookie(alias=COOKIE)]
 
 
@@ -129,6 +140,12 @@ async def require_session(portal_session: Session = None) -> None:
     therefore closed to everyone, which is a different problem with a different
     fix and would be invisible if both said "unauthorized".
     """
+    if not required():
+        # Said once per request at debug rather than warned: an operator who
+        # turned it off does not need telling, and a log that cries wolf about a
+        # deliberate setting is a log nobody reads.
+        log.debug("PORTAL_AUTH_ENABLED is false; this route is open")
+        return
     if not configured():
         log.warning("PORTAL_PASSWORD is not set; protected routes are closed")
         raise HTTPException(

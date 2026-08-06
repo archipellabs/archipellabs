@@ -11,7 +11,7 @@ import pathlib
 
 ROOT = pathlib.Path(
     os.getenv("BLAIR_WORKSPACE_DIR")
-    or pathlib.Path(__file__).resolve().parents[2] / "workspaces"
+    or pathlib.Path(__file__).resolve().parents[1] / "workspaces"
 )
 
 _RUN: contextvars.ContextVar[str | None] = contextvars.ContextVar(

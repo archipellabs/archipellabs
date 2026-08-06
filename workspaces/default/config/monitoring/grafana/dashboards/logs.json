@@ -25,7 +25,7 @@
     "archipellabs",
     "logs"
   ],
-  "description": "Only the COMPANY's systems are collected. The simulator and the portal are deliberately absent (doc/agent-org-lab.md \u00a74): the simulator knows each synthetic customer's intent, which would be the answer key rather than evidence.",
+  "description": "Only the COMPANY's systems are collected. The simulator and the portal are deliberately absent: the simulator knows each synthetic customer's intent, which would be the answer key rather than evidence.",
   "templating": {
     "list": [
       {

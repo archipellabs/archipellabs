@@ -40,6 +40,7 @@ def client() -> httpx.AsyncClient:
 @pytest.fixture
 def password(monkeypatch: pytest.MonkeyPatch) -> str:
     """A configured portal, with sessions signed by a key of this test's own."""
+    monkeypatch.setattr(settings, "auth_enabled", True)
     monkeypatch.setattr(settings, "portal_password", PASSWORD)
     monkeypatch.setattr(settings, "session_secret", "test-signing-key")
     return PASSWORD
@@ -47,6 +48,14 @@ def password(monkeypatch: pytest.MonkeyPatch) -> str:
 
 @pytest.fixture
 def no_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "portal_password", "")
+    monkeypatch.setattr(settings, "auth_enabled", True)
+
+
+@pytest.fixture
+def auth_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A deployment that deliberately asks for nothing."""
+    monkeypatch.setattr(settings, "auth_enabled", False)
     monkeypatch.setattr(settings, "portal_password", "")
 
 
@@ -89,7 +98,11 @@ async def test_login_then_reach_a_guarded_route(client: httpx.AsyncClient, passw
     async with client as http:
         signed_in = await http.post("/api/login", json={"password": password})
         assert signed_in.status_code == 200
-        assert signed_in.json() == {"signed_in": True, "configured": True}
+        assert signed_in.json() == {
+            "signed_in": True,
+            "configured": True,
+            "required": True,
+        }
         # The client keeps the cookie, so this is the browser's next request.
         assert (await http.get("/api/session")).json()["signed_in"] is True
         # 502, not 401: past the guard, and failing only because no simulator is
@@ -114,6 +127,7 @@ async def test_session_reports_an_unconfigured_portal(
         assert (await http.get("/api/session")).json() == {
             "signed_in": False,
             "configured": False,
+            "required": True,
         }
 
 
@@ -148,3 +162,40 @@ def test_a_cookie_signed_with_another_key_is_rejected(
     theirs = auth._sign(2_000_000_000)
     monkeypatch.setattr(settings, "session_secret", "a-different-key")
     assert not auth.valid(theirs)
+
+
+@pytest.mark.parametrize(("method", "path", "body"), GUARDED)
+async def test_the_switch_opens_the_guarded_routes(
+    client: httpx.AsyncClient, auth_off: None, method: str, path: str, body: dict | None
+) -> None:
+    """`PORTAL_AUTH_ENABLED=false` opens them — and opens them *without* a
+    password, which is the point: a local stack should not need one to watch a
+    mock investigation. 502 rather than 401 means the request went past the door
+    and failed only for want of a bus."""
+    async with client as http:
+        response = await http.request(method, path, json=body)
+
+    assert response.status_code != 401, f"{method} {path} still asked for a session"
+    assert response.status_code != 503, f"{method} {path} still called itself closed"
+
+
+async def test_the_switch_is_reported_to_the_page(
+    client: httpx.AsyncClient, auth_off: None
+) -> None:
+    """So a browser renders the pages instead of a form nothing would accept."""
+    async with client as http:
+        body = (await http.get("/api/session")).json()
+
+    assert body == {"signed_in": True, "configured": False, "required": False}
+
+
+async def test_asking_is_the_default(client: httpx.AsyncClient, password: str) -> None:
+    """The switch defaults to on. A deployment that says nothing is a deployment
+    that asks — the failure worth designing against is a stack that meant to be
+    locked and quietly was not."""
+    from app.config import Settings
+
+    assert Settings(_env_file=None).auth_enabled is True
+
+    async with client as http:
+        assert (await http.get("/api/session")).json()["required"] is True

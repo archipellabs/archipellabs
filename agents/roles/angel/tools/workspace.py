@@ -27,7 +27,7 @@ import re
 
 ROOT = pathlib.Path(
     os.getenv("AGENT_WORKSPACE_DIR")
-    or pathlib.Path(__file__).resolve().parents[2] / "workspaces"
+    or pathlib.Path(__file__).resolve().parents[1] / "workspaces"
 )
 
 _current: contextvars.ContextVar[str | None] = contextvars.ContextVar(

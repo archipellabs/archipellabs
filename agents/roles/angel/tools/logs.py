@@ -33,7 +33,7 @@ from core.config import LokiConfig
 from roles.angel.tools import workspace
 
 LOG_DIR = pathlib.Path(
-    os.getenv("AGENT_LOG_DIR") or pathlib.Path(__file__).resolve().parents[2] / "logs"
+    os.getenv("AGENT_LOG_DIR") or pathlib.Path(__file__).resolve().parents[1] / "logs"
 )
 """Where downloads live when no investigation is running."""
 

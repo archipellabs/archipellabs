@@ -14,7 +14,7 @@ use Archipel\Provisioning\Kernel\Context;
  * The integration's key (ConfigureWebservice) has every method on every
  * resource, because it has to write carriers and delivery prices. Handing that
  * to an agent would make "read-only" a promise in a prompt rather than a
- * property of the credential, and the access gradient in doc/agent-org-lab.md §7
+ * property of the credential, and the access gradient the lab measures
  * only means something if the boundary is enforced by the shop.
  *
  * So this key gets GET (and HEAD) and nothing else. An attempt to write comes

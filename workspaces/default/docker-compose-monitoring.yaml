@@ -9,7 +9,7 @@
 # the symptom, and it knows each synthetic customer's intent. Feeding that to an
 # agent investigating the incident is handing over the answer key, so the boundary
 # is enforced by never collecting it: an explicit allowlist for logs, and for
-# metrics only named targets are scraped. See doc/agent-org-lab.md §4.
+# metrics only named targets are scraped. See the header of docker-compose.yaml §4.
 #
 # ── What is instrumented ────────────────────────────────────────────────────
 #

@@ -27,7 +27,7 @@ include:
   - path: docker-compose-erp.yaml
   # Monitoring — logs and metrics for the COMPANY's systems only. Deliberately
   # blind to the simulator, which is the instrument rather than part of the
-  # company (see the file's header, and doc/agent-org-lab.md §4).
+  # company (see the file's header).
   - path: docker-compose-monitoring.yaml
 
 services:

@@ -1,7 +1,9 @@
 """The filename the lab hires by.
 
-`research/lab/campaign.py` discovers employees by looking for `src/investigate.py`
-in each agent directory, so this file has to sit here under this name.
+The campaign runner hires by filename: it discovers employees by looking for
+`investigate.py` in each directory under `roles/`, so this file has to sit
+here under this name. It used to look for `src/investigate.py`, back when
+each employee was its own project.
 
 It used to be a shim over a `campaign_adapter/` package — a bridge to somebody
 else's launcher, kept in its own folder because it was written to be deleted.

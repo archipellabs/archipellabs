@@ -1,7 +1,9 @@
 """The filename the lab hires by.
 
-`research/lab/campaign.py` discovers employees by looking for `src/investigate.py`
-in each agent directory, so this file has to sit here under this name.
+The campaign runner hires by filename: it discovers employees by looking for
+`investigate.py` in each directory under `roles/`, so this file has to sit
+here under this name. It used to look for `src/investigate.py`, back when
+each employee was its own project.
 
 It used to be the whole employee: a driver for `opencode serve`, a converter from
 its conversation to the lab's record, an envelope built by hand — 440 lines, and

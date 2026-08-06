@@ -1,15 +1,12 @@
-# The employees — two of them, on one image.
+# The employees — all seven, in one container.
 #
 #     docker compose -f docker-compose-agents.yaml up -d
 #
-# **Run separately, on purpose.** These cost money: each one holds a provider
-# key and answers tickets from the portal's ask page. The company's own stack —
-# the shop, the analytics, the integration — must stand on its own without them,
-# and it does; an employee that is not running simply cannot be asked.
-#
-# Two, not seven, because two is what the comparison needs: angel drives typed
-# tools through pydantic-ai, philip drives a CLI over a desk. They are the two
-# lineages. The other five are the same image with a different `AGENT_NAME`.
+# **Run separately, on purpose.** These cost money: the container holds a
+# provider key and answers tickets from the portal's ask page. The company's own
+# stack — the shop, the analytics, the integration — must stand on its own
+# without them, and it does; an employee that is not being served simply cannot
+# be asked.
 #
 # The network is created by `docker-compose.yaml`, so bring the company up first.
 
@@ -19,52 +16,53 @@ networks:
   archipellabs_default_net:
     external: true
 
-x-agent: &agent
-  build:
-    context: ../../agents
-    dockerfile: Dockerfile
-  image: archipellabs-agent:latest
-  restart: unless-stopped
-  # `init: true` because the desk drivers reap their own children: codex is
-  # spawned with `start_new_session=True` and killed with `os.killpg`, which
-  # leaves orphans for PID 1 to collect. Without an init the container
-  # accumulates zombies across runs — the same reason the simulator sets it.
-  init: true
-  env_file:
-    - ./config/agents/default.env
-    - path: ./config/agents/.env
-      required: false
-  networks:
-    - archipellabs_default_net
-
 services:
-  # Typed tools, pydantic-ai. Cheap and fast — ~$0.015 and 45s per
-  # investigation — because a typed call returns a value where a shell returns a
-  # conversation to re-read.
-  agent-angel:
-    <<: *agent
-    container_name: agent-angel
+  # One process serving all seven. `AGENT_NAME` takes a name, a comma-separated
+  # list, or `*`; the list is spelled out rather than starred so that adding an
+  # employee to `roles/` is a decision made here rather than a side effect of
+  # creating a directory.
+  #
+  # **Nothing about an employee changes in this arrangement.** Each keeps its own
+  # `max_slots=1`, so one investigation at a time per name, and its own named
+  # configuration, so `PHILIP_HARNESS` still reaches only philip. The bus routes
+  # on `<agent>.investigate` exactly as before — a caller cannot tell whether it
+  # reached one container or seven.
+  #
+  # What it does change is the blast radius: a crash takes all seven down
+  # together. Split this into one service per employee — same image, same file,
+  # a different `AGENT_NAME` each — the day that matters more than the ~600MB
+  # and the single thing to restart.
+  agents:
+    build:
+      context: ../../agents
+      dockerfile: Dockerfile
+    image: archipellabs-agent:latest
+    container_name: agents
+    restart: unless-stopped
+    # `init: true` because the desk drivers reap their own children: codex is
+    # spawned with `start_new_session=True` and killed with `os.killpg`, which
+    # leaves orphans for PID 1 to collect. With seven employees in one container
+    # that is no longer a nicety — four of them spawn subprocesses.
+    init: true
     environment:
-      AGENT_NAME: angel
+      AGENT_NAME: angel,blair,charlie,dana,ethan,mock,philip
+    env_file:
+      - ./config/agents/default.env
+      - path: ./config/agents/.env
+        required: false
     volumes:
-      - agent_angel_runs:/var/lib/agent/runs
+      # One mount for everything an investigation writes: its record, its
+      # scratch, its datasets and the logs it pulled down. The Dockerfile points
+      # all four at this path precisely so a rebuilt container does not lose
+      # them — and so none of it lands back in `roles/`.
+      - agent_runs:/var/lib/agent
+    networks:
+      - archipellabs_default_net
 
-  # A desk and a real shell, driven through codex. Slower and dearer — ~$0.05
-  # and 200s — and the only one of the two whose brief you can edit and diff.
-  agent-philip:
-    <<: *agent
-    container_name: agent-philip
-    environment:
-      AGENT_NAME: philip
-    volumes:
-      - agent_philip_runs:/var/lib/agent/runs
-
-# One volume each. The records are the graded artefact of an investigation and
-# must outlive the container; sharing one volume between two employees would
-# put their evidence in the same directory, which is how a run of blair's was
-# once found in mock's.
+# One volume, because there is one container. The records do not collide: a run
+# id is `<agent>_<hex12>`, so whose investigation a file belongs to is readable
+# from its name rather than from the directory it sits in — which is what made
+# a run of blair's, found once in mock's directory, a confusing thing to explain.
 volumes:
-  agent_angel_runs:
-    name: archipellabs_default_agent_angel_runs
-  agent_philip_runs:
-    name: archipellabs_default_agent_philip_runs
+  agent_runs:
+    name: archipellabs_default_agent_runs

@@ -1,6 +1,6 @@
 """Call `ethan.investigate` over the bus and print what came back.
 
-    python -m tests.e2e.probe "the question"
+    python -m tests.ethan.e2e.probe "the question"
 
 A separate process, because that is what a caller is. The runtime offers no
 one-shot client: `call` needs a node with a reply pump, which means an `App`,
@@ -32,7 +32,7 @@ async def ask(ctx: Context) -> None:
     answer = await ctx.call(
         "ethan.investigate",
         ttl=TTL,
-        question=sys.argv[1],
+        ticket=sys.argv[1],
         reference="e2e",
     )
     print(json.dumps(answer), flush=True)
@@ -43,8 +43,8 @@ async def ask(ctx: Context) -> None:
 
 if __name__ == "__main__":
     app = App(
-        redis=os.environ["REDIS_URL"],
-        namespace=os.getenv("REDIS_NAMESPACE", ""),
+        redis=os.getenv("AGENT_REDIS_URL", "redis://localhost:6379/0"),
+        namespace=os.getenv("AGENT_NAMESPACE", "sim"),
     )
     app.include(probe)
     app.start()

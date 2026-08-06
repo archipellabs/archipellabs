@@ -11,7 +11,7 @@
 # no custom field. (`link_rewrite` is advertised by the schema and does not exist
 # as a column; filtering on it silently matches nothing, which produced six
 # suppliers from two runs of a three-row feed before it was caught.) The fix is a
-# cross-reference of our own — doc/agent-org-lab.md §4 — not a better field.
+# cross-reference of our own — the lab's own notes — not a better field.
 # ── the source adapter: the only part a real ERP replaces ───────────────────
 # Same seam as carriers.camel.yaml, and for the same reason: the source changes
 # with the ERP, the reconciler with PrestaShop.

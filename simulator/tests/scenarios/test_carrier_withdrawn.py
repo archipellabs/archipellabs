@@ -1,6 +1,6 @@
 """Scenario: a carrier stops serving Canada, and nobody says so.
 
-The reference incident from doc/agent-org-lab.md §2, driven end to end through
+The lab's reference incident, driven end to end through
 the real chain: master data → integration layer → storefront → customer.
 
 One line disappears from `carriers.csv`. Nothing errors. Every service stays up,

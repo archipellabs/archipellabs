@@ -34,6 +34,13 @@ workspaces/*/volumes/
 workspaces/public/
 backup/
 
+# The lab that measures the employees — staged incidents, campaign runner,
+# grader, and every report they produced. Kept out of the public repository for
+# the same reason `workspaces/public/` is: what is published is the company and
+# the employees, not the rubric they are scored against. An analyst that could
+# read the scenarios would be measuring the scenarios.
+research/
+
 # What investigations produce, not what they are made of: one record and one
 # workspace per run, and the workspace holds a copy of the whole desk. 124 MB
 # from a few days of asking. The graded artefacts a report cites live beside

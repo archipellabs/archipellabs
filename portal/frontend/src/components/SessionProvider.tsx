@@ -10,8 +10,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .then(setState)
       // A portal whose own session endpoint is unreachable is not a signed-in
       // one; saying so lets the guarded pages explain themselves rather than
-      // hang on `null` forever.
-      .catch(() => setState({ signed_in: false, configured: false }));
+      // hang on `null` forever. `required: true` keeps them guarded rather than
+      // letting a network error open what a setting is supposed to decide.
+      .catch(() => setState({ signed_in: false, configured: false, required: true }));
   }, []);
 
   useEffect(refresh, [refresh]);

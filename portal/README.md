@@ -16,7 +16,7 @@ uv sync
 uv run uvicorn app.main:app --reload      # → http://localhost:8000
 ```
 
-Endpoints: `GET /api/{health,analytics,cartography}`. Interactive docs at `/docs`.
+Endpoints: `GET /api/{health,analytics,cartography,agents,session}`, `POST /api/{login,logout,ask}`, `GET|POST /api/settings`, and the SSE stream `GET /api/ask/{reference}/events`. Interactive docs at `/docs`.
 
 ## Frontend — `frontend/` (React + Vite)
 
@@ -47,6 +47,7 @@ forgets the variable and never finds out.
 |---|---|
 | `PORTAL_PASSWORD` | the password. No password, no access. |
 | `PORTAL_SESSION_SECRET` | signs the session cookie. Unset means a fresh key per process, so restarting signs everyone out. |
+| `PORTAL_AUTH_ENABLED` | whether the two pages ask at all. **`true` by default** — a deployment that says nothing is a deployment that asks. `false` opens them without a password, for a laptop. |
 | `PORTAL_COOKIE_SECURE` | send the cookie only over TLS. `false` by default because local dev is http on localhost, where a Secure cookie is dropped in silence and the login looks like it failed. |
 
 One password rather than accounts, because there is nothing here to attribute
@@ -83,7 +84,8 @@ the bus can route to, which is not the same as everyone who is listening — sta
 the one you want first:
 
 ```sh
-cd agents/angel && uv run python -m src.app      # or blair, charlie, dana, ethan, philip, mock
+cd agents && AGENT_NAME=angel uv run python -m core.main
+# or blair, charlie, dana, ethan, philip, mock — a comma-separated list, or '*' for all
 ```
 
 Nobody home is now said rather than hung: the page warns after 60 seconds and the
@@ -92,9 +94,9 @@ deadline with the name locked.
 
 ### Questions worth asking
 
-These are the lab's own scenarios, verbatim — the same tickets `research/`
-scores. Each one is a real business question with an answer somebody has
-checked, which is what makes it useful for judging what comes back.
+Real business questions with an answer somebody has already checked against the
+running stack, which is what makes them useful for judging what comes back. A
+question whose answer nobody knows tells you only that the page works.
 
 **Nothing is staged.** These stand true whenever the stack is up:
 
@@ -104,8 +106,9 @@ checked, which is what makes it useful for judging what comes back.
 | *Marketing is deciding what to promote next quarter. For the products we sell, can you give me what we have in stock and how much traffic each one actually gets? I want to know where it is worth spending.* | the shop **and** the analytics | 51 active products, 49 of them out of stock. The join is the whole task: the analytics cannot count a page nobody visited, and the shop knows nothing about attention |
 | *We sell into two markets and I have no idea whether they behave the same. For today so far: where are our visitors coming from, and do they buy at the same rate depending on the country? Same question by device while you are at it — are phones converting like desktops?* | the analytics **and** the shop | visitors by country and by device set against orders. Two populations that do not share a key, which a careful answer says out loud |
 
-**These need an incident staged first** (see `research/scenarios/<name>/README.md`)
-— asked against a healthy stack they are answerable and dull:
+**These need an incident staged first** — asked against a healthy stack they are
+answerable and dull. Staging one is a deliberate change to the running company
+(editing the ERP drop, stopping a service), never something a page does:
 
 | ask | staged |
 |---|---|
@@ -121,7 +124,7 @@ folds, the receipt — without spending anything. `MOCK_DELAY_S=2` slows it to a
 readable pace.
 
 ```sh
-cd agents/mock && MOCK_DELAY_S=2 uv run python -m src.app
+cd agents && AGENT_NAME=mock MOCK_DELAY_S=2 uv run python -m core.main
 ```
 
 It ignores the model you pick but reports it, so it is also how to see what a
@@ -131,7 +134,7 @@ question *would* cost on each tier: the same run prices at ~$0.002 on luna,
 ### What a run costs
 
 The employee prices its own run at its final return, from the rate card in
-`agents/_core/agent_core/prices.py` — the one place this repository states a
+`agents/core/prices.py` — the one place this repository states a
 price. The page shows tokens always, and money only when there is a number to
 show: `Billed` when the loop reported a real charge, `Estimated` when it is
 tokens at the published rate, and **nothing at all** for a model nobody has
@@ -154,6 +157,6 @@ stack, or `@host.docker.internal:5432` for a standalone container on the host.
 
 The portal serves the SPA, `/api`, and its assets at the **root** — no sub-path. In
 the workspace stack the gateway publishes it on its own TLS port,
-**https://localhost:8443**
+**https://portal.archipellabs.test**
 ([`config/gateway/nginx.conf`](../workspaces/default/config/gateway/nginx.conf)); in
 production that's a subdomain. It reads the DB DSN from the shared `SIMULATORDB_URL`.

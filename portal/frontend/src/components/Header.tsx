@@ -16,6 +16,9 @@ const LOCK = (
 export function Header() {
   const { state, signOut } = useSession();
   const signedIn = state?.signed_in === true;
+  // With auth off everyone is 'signed in' and there is nothing to sign out
+  // of, so the corner stays empty rather than offering a no-op.
+  const asks = state?.required !== false;
 
   return (
     <header className="portal-header">
@@ -53,7 +56,7 @@ export function Header() {
           </>
         )}
       </nav>
-      {signedIn ? (
+      {signedIn && !asks ? null : signedIn ? (
         <button
           type="button"
           className="portal-login"

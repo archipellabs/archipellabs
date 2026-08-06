@@ -144,8 +144,14 @@ curl -sS -g --cacert "$COMPANY_CA" -u "$SHOP_API_KEY:" "$SHOP_API_URL/orders?out
 **Read one record whole before querying many.** A single record shows the real
 values, the id references and the nested lines.
 
+Take the id from a listing rather than typing one: the shop is rebuilt from
+time to time and yesterday's order number answers `404`, which reads like a
+deleted record rather than a stale example.
+
 ```
-curl -sS -g --cacert "$COMPANY_CA" -u "$SHOP_API_KEY:" -o data/shop_order_5324.json -w 'HTTP %{http_code}  %{size_download} bytes\n' "$SHOP_API_URL/orders/5324?output_format=JSON"
+curl -sS -g --cacert "$COMPANY_CA" -u "$SHOP_API_KEY:" -o data/shop_orders.json -w 'HTTP %{http_code}  %{size_download} bytes\n' "$SHOP_API_URL/orders?output_format=JSON&limit=1"
+ORDER_ID=$(jq -r '.orders[0].id' data/shop_orders.json)
+curl -sS -g --cacert "$COMPANY_CA" -u "$SHOP_API_KEY:" -o "data/shop_order_$ORDER_ID.json" -w 'HTTP %{http_code}  %{size_download} bytes\n' "$SHOP_API_URL/orders/$ORDER_ID?output_format=JSON"
 ```
 
 ## Querying
@@ -280,7 +286,9 @@ curl -sS -g --cacert "$COMPANY_CA" -u "$SHOP_API_KEY:" -o data/shop_order_states
 **How one order moved between states, with timestamps.**
 
 ```
-curl -sS -g --cacert "$COMPANY_CA" -u "$SHOP_API_KEY:" -o data/shop_order_histories.json -w 'HTTP %{http_code}  %{size_download} bytes\n' "$SHOP_API_URL/order_histories?output_format=JSON&filter[id_order]=5324&display=full"
+curl -sS -g --cacert "$COMPANY_CA" -u "$SHOP_API_KEY:" -o data/shop_orders.json -w 'HTTP %{http_code}  %{size_download} bytes\n' "$SHOP_API_URL/orders?output_format=JSON&limit=1"
+ORDER_ID=$(jq -r '.orders[0].id' data/shop_orders.json)
+curl -sS -g --cacert "$COMPANY_CA" -u "$SHOP_API_KEY:" -o data/shop_order_histories.json -w 'HTTP %{http_code}  %{size_download} bytes\n' "$SHOP_API_URL/order_histories?output_format=JSON&filter[id_order]=$ORDER_ID&display=full"
 ```
 
 **Carriers.** `deleted=1` rows are returned alongside live ones.

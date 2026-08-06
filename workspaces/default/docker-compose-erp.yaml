@@ -29,7 +29,7 @@
 #
 # The ownership split is the point, and SFTP permissions make it a credential
 # rather than a convention: an agent that can edit the ledger is not an
-# accountant (doc/agent-org-lab.md §6).
+# accountant.
 #
 # No top-level `networks:` — the docker-compose.yaml entrypoint owns and creates
 # the shared network; this service attaches to it via the include.

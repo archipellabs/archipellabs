@@ -99,7 +99,8 @@ COPY roles/ ./roles/
 # `~/.local/share/opencode/`. Run as root with no home and the first symptom is
 # an investigation that produces no output.
 RUN useradd --create-home --uid 10001 analyst \
-    && mkdir -p /var/lib/agent/runs \
+    && mkdir -p /var/lib/agent/runs /var/lib/agent/workspaces \
+         /var/lib/agent/datasets /var/lib/agent/logs \
     && chown -R analyst:analyst /var/lib/agent /app
 USER analyst
 ENV HOME=/home/analyst
@@ -109,6 +110,15 @@ ENV HOME=/home/analyst
 # where the evidence goes — and mixed evidence is exactly how one employee's
 # records ended up in another's directory.
 ENV AGENT_TRANSCRIPT_DIR=/var/lib/agent/runs
+
+# The three scratch directories the typed toolsets use, for the same reason. Left
+# unset they resolve beside the code — inside the image layer — so a rebuilt
+# container silently loses the datasets and downloaded logs an investigation
+# built, and writes them into the source tree on the way. Pointed at the volume,
+# they persist and they stay out of `roles/`.
+ENV AGENT_WORKSPACE_DIR=/var/lib/agent/workspaces \
+    AGENT_DATA_DIR=/var/lib/agent/datasets \
+    AGENT_LOG_DIR=/var/lib/agent/logs
 
 # One employee, a comma-separated list, or `*` for all of them — so the
 # deployment decides how many processes this is, not the image. One container
