@@ -925,7 +925,13 @@ function Console() {
   const [agents, setAgents] = useState<string[]>(AGENTS_UNTIL_KNOWN);
   const [agent, setAgent] = useState<string>(AGENTS_UNTIL_KNOWN[0]);
   const [model, setModel] = useState<string>(MODELS[0].value);
-  const [effort, setEffort] = useState<string>("medium");
+  // `low`, matching the API's own default for this field — the two disagreed,
+  // and the page won, so every question asked from a browser ran at medium while
+  // the schema said low. Measured on the public deployment against the same
+  // question: **15s at low, 37–89s at medium**, three to five times the wait for
+  // an answer a visitor watches arrive. The selector is still here; this only
+  // decides what an unattended first click does.
+  const [effort, setEffort] = useState<string>("low");
   const [question, setQuestion] = useState("");
 
   const [phase, setPhase] = useState<Phase>("idle");

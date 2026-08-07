@@ -29,11 +29,20 @@ log = logging.getLogger("simulator.payments")
 AWAITING_BANK_WIRE = 10
 PAYMENT_ACCEPTED = 2
 
-# Orders accepted per pass. The backlog on a shop that has been running without
-# this flow is unbounded (hundreds), and each acceptance is a write that also
-# triggers PrestaShop's own state-change side effects — so drain it in bounded
-# batches rather than in one tick that runs for minutes.
-MAX_PER_PASS = 25
+# Orders accepted per pass. Each acceptance is a write that also triggers
+# PrestaShop's own state-change side effects, so this drains in bounded batches
+# rather than in one tick that runs for minutes.
+#
+# Raised from 25 after the public deployment showed what "the backlog is
+# unbounded (hundreds)" is worth as an estimate: it was **50 223**, because the
+# listing this bound applies to had no bound of its own and timed out on every
+# pass since the shop opened. At 25 per five minutes the drain ran slower than
+# orders arrived for the first hour of every day.
+#
+# 500 is a rate, not a capacity: 6 000/hour against ~126 orders/hour arriving.
+# The one-off `scripts/settle_backlog.py` exists for the case this is still too
+# slow for — an accumulated backlog you want gone now rather than by Thursday.
+MAX_PER_PASS = 500
 
 
 async def accept_bank_wire_payments(
@@ -62,9 +71,29 @@ async def accept_bank_wire_payments(
 
 
 async def _orders_awaiting_bank_wire(json_http: httpx.AsyncClient) -> list[int]:
+    """The next batch to settle — **bounded**, because the caller only ever uses
+    that many.
+
+    The `limit` is not an optimisation. Without it this asked the shop for every
+    order in the awaiting state, and the caller then sliced the first
+    `MAX_PER_PASS` off the result and discarded the rest. That is harmless while
+    the backlog is the "hundreds" the note above imagines, and fatal past a
+    certain size: on the public deployment the awaiting set reached 50 223 rows,
+    PrestaShop could not serialise them inside the client's read timeout, and the
+    call raised `httpx.ReadTimeout` before a single order was settled.
+
+    The failure feeds itself, which is why it never recovered on its own. Every
+    timed-out pass leaves the whole backlog in place and the arriving orders add
+    to it, so each pass asks for a larger response than the one that just timed
+    out. It had never once succeeded.
+    """
     r = await json_http.get(
         "/orders",
-        params={"filter[current_state]": AWAITING_BANK_WIRE, "display": "[id]"},
+        params={
+            "filter[current_state]": AWAITING_BANK_WIRE,
+            "display": "[id]",
+            "limit": MAX_PER_PASS,
+        },
     )
     r.raise_for_status()
     data = r.json()

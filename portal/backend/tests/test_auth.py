@@ -215,3 +215,32 @@ async def test_asking_is_the_default(client: httpx.AsyncClient, password: str) -
 
     async with client as http:
         assert (await http.get("/api/session")).json()["required"] is True
+
+
+async def test_the_investigation_task_is_held(
+    client: httpx.AsyncClient, password: str
+) -> None:
+    """asyncio holds only a weak reference to a task, so one whose handle is
+    discarded can be collected mid-run — silently, with no error.
+
+    `work()` is the task that must survive: its `finally` is the only thing that
+    frees the analyst and ends the stream. Lost, it strands the slot for the life
+    of the process, and every later question is refused with "is already working
+    on a question" while nothing is working — observed on the public deployment,
+    with the agents container idle and the portal refusing every request.
+
+    Asserted on the registry rather than on garbage collection, which cannot be
+    provoked reliably: what this pins is that a reference is taken at all.
+    """
+    from app.main import _running
+
+    async with client as http:
+        signed_in = await http.post("/api/login", json={"password": password})
+        assert signed_in.status_code == 200
+        before = len(_running)
+        response = await http.post(
+            "/api/ask", json={"agent": "mock", "question": "hello"}
+        )
+
+    assert response.status_code == 200
+    assert len(_running) > before, "the investigation task was started unreferenced"

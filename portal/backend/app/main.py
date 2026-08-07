@@ -32,7 +32,31 @@ log = logging.getLogger("portal")
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
-SILENT_AFTER = 90.0
+_running: set[asyncio.Task] = set()
+"""Strong references to the in-flight investigation tasks.
+
+Not bookkeeping — the only thing keeping them alive. See the note at the
+`create_task` call below.
+"""
+
+SILENT_AFTER = 240.0
+"""How long a request may hear nothing before the portal frees its slot.
+
+**This only ever needs to catch a process that is not running at all**, and such
+a process is silent for the full fifteen-minute ttl — so the deadline can be
+generous without weakening what it detects. Being too short is the expensive
+error: it declares a working analyst dead and tells the visitor to ask again,
+which spends a second run's money to reach the answer the first one was about to
+give.
+
+Raised from 90s, which was close enough to real run times to fire on healthy
+runs. The desk drivers make their first event expensive — the desk is copied into
+the workspace, a Node CLI boots, a session is opened, and only then does the
+model take its first turn. Measured on the public deployment, philip's completed
+runs took 45–86s **in total**; the machine was also draining a payment backlog at
+the time, and a loaded host pushes the first event past a 90s deadline long
+before it pushes it past four minutes.
+"""
 """Seconds an analyst may say nothing before this process stops holding its name.
 
 Not a run deadline — an investigation takes minutes and is left alone. This is
@@ -267,7 +291,18 @@ async def ask(request: Ask, _: Guarded) -> Asked:
             # if the call returned something `settled` could make nothing of.
             queue.put_nowait(None)
 
-    asyncio.get_running_loop().create_task(work())
+    # **Held, not just started.** asyncio keeps only a weak reference to a task,
+    # so one whose handle is discarded can be garbage-collected mid-flight — it
+    # simply stops, with no error anywhere. `work()` is exactly the task that must
+    # not: its `finally` is the only thing that frees the analyst and closes the
+    # stream, so losing it strands the slot for the life of the process. Every
+    # later question is then refused with "is already working on a question" while
+    # the container running that analyst is idle — which is precisely the symptom
+    # the watchdog above was written for, and which the watchdog cannot cure once
+    # a first event has been heard.
+    task = asyncio.get_running_loop().create_task(work())
+    _running.add(task)
+    task.add_done_callback(_running.discard)
     return Asked(reference=reference, agent=request.agent)
 
 
@@ -303,10 +338,40 @@ app.include_router(api)
 # --- built SPA (Docker) served at the root ----------------------------------
 # Registered after the API routes so they always match first. Absent in local dev,
 # where Vite serves the SPA and proxies /api here.
+IMMUTABLE = "public, max-age=31536000, immutable"
+"""For `/assets/*`, whose filenames carry a content hash.
+
+A new build produces a new name, so a cached copy can never be the wrong one and
+there is nothing to revalidate. Everything under this mount is safe to keep for a
+year."""
+
+REVALIDATE = "no-cache"
+"""For `index.html`, which keeps its name across builds while its contents change.
+
+`no-cache` does not mean "do not store" — it means "ask before reusing", which is
+a conditional request answered by a 304 in the common case.
+
+**This is the pair, and it only works as a pair.** index.html names the hashed
+bundle it needs; a browser holding yesterday's copy asks for a bundle this build
+no longer ships, gets a 404, and renders nothing. Not an error page — a blank
+one, indistinguishable from the server being down. That is what several rebuilds
+of this image did on 2026-08-06: the deployment was healthy and answering in
+under a second while a browser saw an empty page."""
+
+
+class Assets(StaticFiles):
+    """`StaticFiles`, plus the header it does not set on its own."""
+
+    def file_response(self, *args: object, **kwargs: object) -> Response:
+        response = super().file_response(*args, **kwargs)  # type: ignore[arg-type]
+        response.headers["Cache-Control"] = IMMUTABLE
+        return response
+
+
 if STATIC_DIR.is_dir():
     app.mount(
         "/assets",
-        StaticFiles(directory=STATIC_DIR / "assets"),
+        Assets(directory=STATIC_DIR / "assets"),
         name="assets",
     )
 
@@ -315,9 +380,14 @@ if STATIC_DIR.is_dir():
         # A real file (favicon, etc.) is served as-is; every other path falls back
         # to index.html so the client-side router owns it. The candidate is resolved
         # and confined to STATIC_DIR so an encoded "../" can't escape the bundle.
+        #
+        # Both get REVALIDATE: index.html because it must, and the loose files
+        # beside it (favicon, logos) because they are not content-hashed either.
         if path == "api" or path.startswith("api/"):
             raise HTTPException(status_code=404)
         candidate = (STATIC_DIR / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(STATIC_DIR):
-            return FileResponse(candidate)
-        return FileResponse(STATIC_DIR / "index.html")
+            return FileResponse(candidate, headers={"Cache-Control": REVALIDATE})
+        return FileResponse(
+            STATIC_DIR / "index.html", headers={"Cache-Control": REVALIDATE}
+        )
