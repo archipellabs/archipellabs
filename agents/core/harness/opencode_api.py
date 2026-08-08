@@ -48,7 +48,15 @@ SCHEMA = "https://opencode.ai/config.json"
 """The `$schema` opencode's own configuration declares."""
 
 START_TIMEOUT = 30.0
-"""How long to wait for `opencode serve` to accept a connection."""
+"""How long to wait for `opencode serve` to answer its first request."""
+
+PROBE_TIMEOUT = 2.0
+"""Per-attempt budget for the readiness probe.
+
+Short on purpose: the probe is retried until `START_TIMEOUT`, so a slow first
+answer costs another attempt rather than the whole budget. Nothing here should
+inherit the agent's timeout — that is what turned a server that was not ready
+into a ten-minute run that did nothing."""
 
 REPLY_CHARS = 2000
 """How much of the turn's own HTTP reply is kept for an error message.
@@ -479,21 +487,37 @@ async def serving(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    base_url = f"http://127.0.0.1:{port}"
     try:
         deadline = time.monotonic() + START_TIMEOUT
-        while True:
-            if process.poll() is not None:
-                raise RuntimeError(f"opencode serve exited with {process.returncode}")
-            try:
-                with socket.create_connection(("127.0.0.1", port), timeout=1.0):
+        # **Ready means "answers HTTP", not "accepts TCP".** This waited on
+        # `socket.create_connection` alone, and a listening socket is not a
+        # running server: the runtime binds the port before its request handler
+        # is wired, so the connection succeeds, this yields, and the first
+        # `POST /session` is sent into a server that is not answering yet.
+        #
+        # That call inherits the *agent's* timeout, so the hang costs the whole
+        # run: measured at 600s exactly — `AGENT_TIMEOUT_S` to the millisecond —
+        # ending in `ReadTimeout` with zero tool calls and zero model requests,
+        # roughly one run in four. It leaves no trace either, because httpx logs
+        # a request when it completes, and that one never did. The record says
+        # ten minutes of work; nothing happened in them.
+        async with httpx.AsyncClient(base_url=base_url, timeout=PROBE_TIMEOUT) as probe:
+            while True:
+                if process.poll() is not None:
+                    raise RuntimeError(
+                        f"opencode serve exited with {process.returncode}"
+                    )
+                try:
+                    await probe.get("/config")
                     break
-            except OSError:
-                if time.monotonic() > deadline:
-                    raise TimeoutError(
-                        f"opencode serve did not listen within {START_TIMEOUT}s"
-                    ) from None
-                await asyncio.sleep(0.25)
-        yield f"http://127.0.0.1:{port}"
+                except httpx.HTTPError:
+                    if time.monotonic() > deadline:
+                        raise TimeoutError(
+                            f"opencode serve did not answer within {START_TIMEOUT}s"
+                        ) from None
+                    await asyncio.sleep(0.25)
+        yield base_url
     finally:
         process.terminate()
         with contextlib.suppress(subprocess.TimeoutExpired):

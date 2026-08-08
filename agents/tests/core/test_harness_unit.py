@@ -358,3 +358,37 @@ def test_the_certificate_to_trust_is_the_desk_s_until_a_deployment_says_otherwis
     deployed = dataclasses.replace(base, shop=dataclasses.replace(base.shop, ca=store))
 
     assert company_env(DESK, deployed)["COMPANY_CA"] == store
+
+
+def test_opencode_is_ready_when_it_answers_not_when_it_listens() -> None:
+    """A listening socket is not a running server.
+
+    `serving` waited on `socket.create_connection` alone. The runtime binds its
+    port before its request handler is wired, so the connection succeeded, the
+    context manager yielded, and the first `POST /session` went into a server
+    that was not answering yet — where it sat for the *agent's* timeout, because
+    that is the timeout the session client carries.
+
+    Measured in Docker: `ReadTimeout` at 600 535 ms against `AGENT_TIMEOUT_S` of
+    600, zero tool calls, zero model requests, roughly one run in four. It left
+    no trace either: httpx logs a request when it completes, and that one never
+    did, so the container looked idle for the ten minutes the record calls work.
+
+    The probe accepts any HTTP response, 404 included — what is being proven is
+    that something is answering, not what it says.
+    """
+    from core.harness import opencode_api
+
+    whole = inspect.getsource(opencode_api.serving.__wrapped__)  # type: ignore[attr-defined]
+    # Comments stripped: the note explaining the old behaviour names the old call,
+    # and the first version of this test read that prose as the code it warns
+    # about — a test failing on its own explanation.
+    code = "\n".join(
+        line for line in whole.splitlines() if not line.lstrip().startswith("#")
+    )
+
+    assert "probe.get(" in code, "readiness no longer makes an HTTP request"
+    assert "create_connection" not in code, "back to accepting TCP as ready"
+    assert opencode_api.PROBE_TIMEOUT < opencode_api.START_TIMEOUT, (
+        "one probe attempt may not consume the whole startup budget"
+    )
